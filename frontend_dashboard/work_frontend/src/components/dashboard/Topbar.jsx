@@ -1,158 +1,141 @@
-import { useState, useEffect, useRef } from "react";
-import { Menu, Search, Bell, ChevronDown, AlertTriangle, AlertCircle, Clock, X } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Menu, Search, Bell, AlertTriangle, AlertCircle, Clock, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import notificacionService from "../../service/notificacionService";
+import { fmtFecha } from "../../lib/format";
+
+const VACIO = { stockMinimo: [], proximosVencer: [], agotados: [] };
 
 export function Topbar({ title, subtitle, onMenuClick }) {
-  const [searchVal, setSearchVal] = useState("");
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notificaciones, setNotificaciones] = useState({
-    stockMinimo: [],
-    proximosVencer: [],
-    agotados: [],
-  });
+  const [busqueda, setBusqueda] = useState("");
+  const [mostrarAlertas, setMostrarAlertas] = useState(false);
+  const [notificaciones, setNotificaciones] = useState(VACIO);
   const [cargandoNotif, setCargandoNotif] = useState(false);
-  const notifRef = useRef(null);
+  const alertasRef = useRef(null);
   const { usuario } = useAuth();
+  const navigate = useNavigate();
 
   const iniciales = usuario
     ? `${usuario.nombre_usuario?.[0] ?? ""}${usuario.apellido_usuario?.[0] ?? ""}`.toUpperCase()
     : "??";
 
   const totalAlertas =
-    (notificaciones.stockMinimo?.length || 0) +
-    (notificaciones.proximosVencer?.length || 0) +
-    (notificaciones.agotados?.length || 0);
+    notificaciones.stockMinimo.length + notificaciones.proximosVencer.length + notificaciones.agotados.length;
 
-  useEffect(() => {
-    const cargarNotificaciones = async () => {
-      setCargandoNotif(true);
-      try {
-        const datos = await notificacionService.obtenerTodas();
-        setNotificaciones(datos);
-      } catch (err) {
-        console.error("Error al cargar notificaciones:", err);
-      } finally {
-        setCargandoNotif(false);
-      }
-    };
-
-    cargarNotificaciones();
-    // Refrescar cada 60s
-    const timer = setInterval(cargarNotificaciones, 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Cerrar popup al hacer click afuera
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
-        setShowNotifications(false);
-      }
+  const cargarNotificaciones = useCallback(async () => {
+    setCargandoNotif(true);
+    try {
+      setNotificaciones(await notificacionService.obtenerTodas());
+    } finally {
+      setCargandoNotif(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    cargarNotificaciones();
+    const timer = setInterval(cargarNotificaciones, 60000); // refresco cada 60 s
+    return () => clearInterval(timer);
+  }, [cargarNotificaciones]);
+
+  // Cerrar el panel al hacer clic afuera
+  useEffect(() => {
+    const alHacerClic = (e) => {
+      if (alertasRef.current && !alertasRef.current.contains(e.target)) setMostrarAlertas(false);
+    };
+    document.addEventListener("mousedown", alHacerClic);
+    return () => document.removeEventListener("mousedown", alHacerClic);
+  }, []);
+
+  // El buscador global lleva al catálogo con el texto ya aplicado
+  const buscar = (e) => {
+    e.preventDefault();
+    const q = busqueda.trim();
+    navigate(q ? `/dashboard/productos?q=${encodeURIComponent(q)}` : "/dashboard/productos");
+    setBusqueda("");
+  };
 
   return (
-    <header className="flex items-center gap-4 px-6 py-4 bg-card border-b border-border relative">
-      <button onClick={onMenuClick} className="md:hidden p-1.5 rounded-lg hover:bg-muted transition-colors">
-        <Menu size={18} />
+    <header className="relative z-20 flex items-center gap-3 border-b border-border bg-card px-4 py-3.5 sm:px-6">
+      <button onClick={onMenuClick} className="btn-icon md:hidden" aria-label="Abrir menú">
+        <Menu size={19} />
       </button>
 
-      <div className="flex-1 min-w-0">
-        <h1 className="text-base font-semibold text-foreground leading-none">{title}</h1>
-        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-base font-extrabold leading-none text-foreground">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
       </div>
 
-      <div className="hidden md:flex items-center gap-2 bg-muted rounded-lg px-3 py-2 w-56">
-        <Search size={14} className="text-muted-foreground flex-shrink-0" />
+      <form onSubmit={buscar} className="hidden w-60 items-center gap-2 rounded-xl bg-muted px-3 py-2 md:flex">
+        <Search size={14} className="flex-shrink-0 text-muted-foreground" />
         <input
-          value={searchVal}
-          onChange={(e) => setSearchVal(e.target.value)}
-          placeholder="Buscar..."
-          className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar producto..."
+          aria-label="Buscar producto"
+          className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
-      </div>
+      </form>
 
-      {/* Botón y Popover de Notificaciones */}
-      <div className="relative" ref={notifRef}>
+      {/* Alertas de inventario */}
+      <div className="relative" ref={alertasRef}>
         <button
-          onClick={() => setShowNotifications(!showNotifications)}
-          className="relative p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-          title="Notificaciones"
+          onClick={() => setMostrarAlertas((v) => !v)}
+          className="btn-icon relative p-2"
+          title="Alertas de inventario"
+          aria-label="Alertas de inventario"
         >
           <Bell size={18} />
           {totalAlertas > 0 && (
-            <span className="absolute top-1 right-1 min-w-4 h-4 px-1 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
               {totalAlertas}
             </span>
           )}
         </button>
 
-        {showNotifications && (
-          <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden text-card-foreground animate-in fade-in-50">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+        {mostrarAlertas && (
+          <div className="card absolute right-0 mt-2 w-80 overflow-hidden shadow-xl animate-in fade-in-50 sm:w-96">
+            <div className="flex items-center justify-between border-b border-border bg-muted/60 px-4 py-3">
               <div className="flex items-center gap-2">
-                <Bell size={16} className="text-blue-600" />
-                <h3 className="text-sm font-semibold">Alertas de Inventario</h3>
+                <Bell size={15} className="text-primary" />
+                <h3 className="text-sm font-bold">Alertas de inventario</h3>
               </div>
-              <button
-                onClick={() => setShowNotifications(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
+              <button onClick={() => setMostrarAlertas(false)} className="btn-icon" aria-label="Cerrar">
                 <X size={14} />
               </button>
             </div>
 
-            <div className="max-h-80 overflow-y-auto divide-y divide-border p-2 space-y-1">
-              {cargandoNotif ? (
-                <p className="text-xs text-muted-foreground text-center py-6">Cargando alertas...</p>
+            <div className="max-h-80 space-y-1 overflow-y-auto p-2">
+              {cargandoNotif && totalAlertas === 0 ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">Cargando alertas...</p>
               ) : totalAlertas === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p className="text-xs">Todo en orden. No hay alertas pendientes.</p>
-                </div>
+                <p className="py-8 text-center text-xs text-muted-foreground">Todo en orden. No hay alertas pendientes.</p>
               ) : (
                 <>
-                  {/* Agotados */}
-                  {notificaciones.agotados?.map((item, idx) => (
-                    <div key={`ag-${idx}`} className="flex items-start gap-2.5 p-2 rounded-lg bg-red-50/60 dark:bg-red-950/30">
-                      <AlertCircle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
-                      <div className="text-xs min-w-0">
-                        <p className="font-semibold text-red-700 dark:text-red-400 truncate">
-                          {item.nombre_producto || "Producto agotado"}
-                        </p>
-                        <p className="text-muted-foreground text-[11px]">Stock en 0 unidades</p>
+                  {notificaciones.agotados.map((item) => (
+                    <div key={`ag-${item.id_producto}`} className="flex items-start gap-2.5 rounded-xl bg-destructive-soft p-2.5">
+                      <AlertCircle size={15} className="mt-0.5 flex-shrink-0 text-destructive" />
+                      <div className="min-w-0 text-xs">
+                        <p className="truncate font-bold text-destructive">{item.nombre_producto}</p>
+                        <p className="text-[11px] text-muted-foreground">Agotado · 0 unidades</p>
                       </div>
                     </div>
                   ))}
-
-                  {/* Stock Mínimo */}
-                  {notificaciones.stockMinimo?.map((item, idx) => (
-                    <div key={`sm-${idx}`} className="flex items-start gap-2.5 p-2 rounded-lg bg-amber-50/60 dark:bg-amber-950/30">
-                      <AlertTriangle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                      <div className="text-xs min-w-0">
-                        <p className="font-semibold text-amber-700 dark:text-amber-400 truncate">
-                          {item.nombre_producto || "Stock bajo"}
-                        </p>
-                        <p className="text-muted-foreground text-[11px]">
-                          Quedan {item.stock} unidades (mínimo recomendado)
-                        </p>
+                  {notificaciones.stockMinimo.map((item) => (
+                    <div key={`sm-${item.id_producto}`} className="flex items-start gap-2.5 rounded-xl bg-warning-soft p-2.5">
+                      <AlertTriangle size={15} className="mt-0.5 flex-shrink-0 text-warning-foreground" />
+                      <div className="min-w-0 text-xs">
+                        <p className="truncate font-bold text-warning-foreground">{item.nombre_producto}</p>
+                        <p className="text-[11px] text-muted-foreground">Stock bajo · quedan {item.stock} unidades</p>
                       </div>
                     </div>
                   ))}
-
-                  {/* Próximos a vencer */}
-                  {notificaciones.proximosVencer?.map((item, idx) => (
-                    <div key={`pv-${idx}`} className="flex items-start gap-2.5 p-2 rounded-lg bg-blue-50/60 dark:bg-blue-950/30">
-                      <Clock size={15} className="text-blue-500 flex-shrink-0 mt-0.5" />
-                      <div className="text-xs min-w-0">
-                        <p className="font-semibold text-blue-700 dark:text-blue-400 truncate">
-                          {item.nombre_producto || "Próximo a vencer"}
-                        </p>
-                        <p className="text-muted-foreground text-[11px]">
-                          Vence: {item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString("es-CO") : "Pronto"}
-                        </p>
+                  {notificaciones.proximosVencer.map((item) => (
+                    <div key={`pv-${item.id_producto}`} className="flex items-start gap-2.5 rounded-xl bg-accent p-2.5">
+                      <Clock size={15} className="mt-0.5 flex-shrink-0 text-accent-foreground" />
+                      <div className="min-w-0 text-xs">
+                        <p className="truncate font-bold text-accent-foreground">{item.nombre_producto}</p>
+                        <p className="text-[11px] text-muted-foreground">Vence: {fmtFecha(item.fecha_vencimiento)}</p>
                       </div>
                     </div>
                   ))}
@@ -163,15 +146,14 @@ export function Topbar({ title, subtitle, onMenuClick }) {
         )}
       </div>
 
-      <div className="flex items-center gap-2 pl-2 border-l border-border">
-        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
+      <div className="flex items-center gap-2 border-l border-border pl-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
           {iniciales}
         </div>
         <div className="hidden md:block">
-          <p className="text-xs font-medium leading-none">{usuario?.nombre_usuario ?? "Usuario"}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{usuario?.rol?.nombre_rol ?? "—"}</p>
+          <p className="text-xs font-bold leading-none">{usuario?.nombre_usuario ?? "Usuario"}</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">{usuario?.rol?.nombre_rol ?? "—"}</p>
         </div>
-        <ChevronDown size={14} className="text-muted-foreground hidden md:block" />
       </div>
     </header>
   );

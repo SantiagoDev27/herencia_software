@@ -1,48 +1,50 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import logo from '../assets/image copy.png';
-import './AuthModal.css';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Notice } from "./ui/Notice";
+import "./AuthModal.css";
 
-export default function AuthModal({ onCerrar }) {
-  const [view, setView] = useState('login'); // 'login' | 'register' | 'recovery'
+// Roles sembrados por el backend (src/scrips/seedUsuario.js). No hay endpoint para listarlos.
+const ROLES = [
+  { id: 2, nombre: "Vendedor" },
+  { id: 1, nombre: "Administrador" },
+  { id: 3, nombre: "Cliente" },
+];
+
+const FORM_REGISTRO = {
+  nombre: "",
+  apellido: "",
+  correo: "",
+  contraseña: "",
+  telefono: "",
+  rol: "2",
+};
+
+// Tarjeta de acceso: inicio de sesión y registro contra /api/auth/login y /api/auth/register
+export default function AuthModal() {
+  const [modo, setModo] = useState("login"); // "login" | "registro"
   const [cargando, setCargando] = useState(false);
-  const [cargandoRecuperar, setCargandoRecuperar] = useState(false);
-  const [mensajeExitoRecuperar, setMensajeExitoRecuperar] = useState("");
   const [error, setError] = useState(null);
+  const [verClave, setVerClave] = useState(false);
+
+  const [loginForm, setLoginForm] = useState({ correo: "", contraseña: "" });
+  const [registro, setRegistro] = useState(FORM_REGISTRO);
 
   const { login, registrar } = useAuth();
   const navigate = useNavigate();
 
-  // Estados de Login
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPass, setLoginPass] = useState("");
-
-  // Estado de Recuperar
-  const [recuperarEmail, setRecuperarEmail] = useState("");
-
-  // Estados de Registro
-  const [nombre, setNombre] = useState("");
-  const [apellido, setApellido] = useState("");
-  const [regEmail, setRegEmail] = useState("");
-  const [regPass, setRegPass] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [rol, setRol] = useState("1");
-
-  const toggleView = () => {
-    setView((prev) => (prev === 'login' ? 'register' : 'login'));
+  const cambiarModo = (nuevo) => {
+    setModo(nuevo);
     setError(null);
-    setMensajeExitoRecuperar("");
   };
 
-  const handleLoginSubmit = async (e) => {
+  const enviarLogin = async (e) => {
     e.preventDefault();
     setError(null);
     setCargando(true);
     try {
-      await login(loginEmail, loginPass);
-      if (onCerrar) onCerrar();
+      await login(loginForm.correo.trim(), loginForm.contraseña);
       navigate("/dashboard");
     } catch (err) {
       setError(err.mensaje || "Credenciales incorrectas.");
@@ -51,269 +53,202 @@ export default function AuthModal({ onCerrar }) {
     }
   };
 
-  const handleRegisterSubmit = async (e) => {
+  const enviarRegistro = async (e) => {
     e.preventDefault();
     setError(null);
     setCargando(true);
     try {
-      await registrar({
-        nombre_usuario: nombre,
-        apellido_usuario: apellido,
-        correo_usuario: regEmail,
-        contraseña_usuario: regPass,
-        telefono_usuario: telefono,
-        fk_usuario_id_rol: Number(rol),
-      });
-      if (onCerrar) onCerrar();
+      const datos = {
+        nombre_usuario: registro.nombre.trim(),
+        apellido_usuario: registro.apellido.trim(),
+        correo_usuario: registro.correo.trim(),
+        contraseña_usuario: registro.contraseña,
+        fk_usuario_id_rol: Number(registro.rol),
+      };
+      if (registro.telefono.trim()) datos.telefono_usuario = registro.telefono.trim();
+      await registrar(datos);
       navigate("/dashboard");
     } catch (err) {
-      setError(err.mensaje || "Error al registrar la cuenta.");
+      setError(err.mensaje || "No se pudo crear la cuenta.");
     } finally {
       setCargando(false);
     }
   };
 
-  const handleRecuperarSubmit = (e) => {
-    e.preventDefault();
-    if (!recuperarEmail.trim()) return;
-    setError(null);
-    setMensajeExitoRecuperar("");
-    setCargandoRecuperar(true);
+  const botonClave = (
+    <button
+      type="button"
+      onClick={() => setVerClave((v) => !v)}
+      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      aria-label={verClave ? "Ocultar contraseña" : "Mostrar contraseña"}
+    >
+      {verClave ? <EyeOff size={16} /> : <Eye size={16} />}
+    </button>
+  );
 
-    setTimeout(() => {
-      setCargandoRecuperar(false);
-      setMensajeExitoRecuperar("el codigo a sido enviado correctamente");
-    }, 1500);
-  };
+  const esLogin = modo === "login";
 
   return (
-    <div className="auth-page-wrapper">
-      <div className="auth-card">
-        
-        {/* LOGO */}
-        <div className="auth-logo-container">
-          <img src={logo} alt="Herencia de Papá Logo" className="auth-logo" />
-        </div>
-
-        {/* HEADER */}
-        <div className="auth-header">
-          <h2 className="auth-title">
-            {view === 'login'
-              ? 'INICIAR SESIÓN'
-              : view === 'register'
-              ? 'REGISTRARSE'
-              : 'RECUPERAR CONTRASEÑA'}
-          </h2>
-          <p className="auth-description">
-            {view === 'login'
-              ? 'Ingresa tu correo y contraseña para continuar.'
-              : view === 'register'
-              ? 'Completa tus datos para crear una nueva cuenta.'
-              : 'Ingresa tu correo para recibir el código de verificación.'}
-          </p>
-        </div>
-
-        {error && (
-          <div style={{ color: "#ef4444", fontSize: "12px", marginBottom: "12px", textAlign: "center" }}>
-            {error}
-          </div>
-        )}
-
-        {view === 'login' ? (
-          /* FORMULARIO DE INICIO DE SESIÓN */
-          <form className="auth-form" onSubmit={handleLoginSubmit}>
-            <div className="auth-fields-container">
-              <div className="auth-field">
-                <label className="auth-label">Correo electrónico</label>
-                <input
-                  type="email"
-                  placeholder="ejemplo@correo.com"
-                  className="auth-input"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Contraseña</label>
-                <input
-                  type="password"
-                  placeholder="Ingresa tu contraseña"
-                  className="auth-input"
-                  value={loginPass}
-                  onChange={(e) => setLoginPass(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ textAlign: "right", marginTop: "-6px" }}>
-                <button
-                  type="button"
-                  className="auth-link-btn"
-                  onClick={() => {
-                    setView('recovery');
-                    setError(null);
-                    setMensajeExitoRecuperar("");
-                  }}
-                >
-                  recuperar contraseña
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit-btn" disabled={cargando}>
-              {cargando ? "Ingresando..." : "Entrar"}
-            </button>
-
-            <div className="auth-footer">
-              ¿No tienes una cuenta?
-              <button type="button" className="auth-toggle-btn" onClick={toggleView}>
-                Regístrate
-              </button>
-            </div>
-          </form>
-        ) : view === 'recovery' ? (
-          /* FORMULARIO DE RECUPERAR CONTRASEÑA */
-          <form className="auth-form" onSubmit={handleRecuperarSubmit}>
-            <div className="auth-fields-container">
-              <div className="auth-field">
-                <label className="auth-label">Correo electrónico</label>
-                <input
-                  type="email"
-                  placeholder="ejemplo@correo.com"
-                  className="auth-input"
-                  value={recuperarEmail}
-                  onChange={(e) => {
-                    setRecuperarEmail(e.target.value);
-                    if (mensajeExitoRecuperar) setMensajeExitoRecuperar("");
-                  }}
-                  required
-                />
-                {mensajeExitoRecuperar && (
-                  <p className="auth-success-msg">
-                    {mensajeExitoRecuperar}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit-btn" disabled={cargandoRecuperar}>
-              {cargandoRecuperar ? (
-                <Loader2 className="auth-spinner animate-spin" size={18} />
-              ) : (
-                "enviar codigo de verificacion"
-              )}
-            </button>
-
-            <div className="auth-footer">
-              <button
-                type="button"
-                className="auth-toggle-btn"
-                onClick={() => {
-                  setView('login');
-                  setError(null);
-                  setMensajeExitoRecuperar("");
-                  setRecuperarEmail("");
-                }}
-              >
-                Volver al inicio de sesión
-              </button>
-            </div>
-          </form>
-        ) : (
-          /* FORMULARIO DE REGISTRO */
-          <form className="auth-form" onSubmit={handleRegisterSubmit}>
-            <div className="auth-fields-container">
-              <div className="auth-row">
-                <div className="auth-field">
-                  <label className="auth-label">Nombre</label>
-                  <input
-                    type="text"
-                    placeholder="Juan"
-                    className="auth-input"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="auth-field">
-                  <label className="auth-label">Apellido</label>
-                  <input
-                    type="text"
-                    placeholder="Pérez"
-                    className="auth-input"
-                    value={apellido}
-                    onChange={(e) => setApellido(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Correo electrónico</label>
-                <input
-                  type="email"
-                  placeholder="ejemplo@correo.com"
-                  className="auth-input"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Contraseña</label>
-                <input
-                  type="password"
-                  placeholder="Mínimo 6 caracteres"
-                  className="auth-input"
-                  value={regPass}
-                  onChange={(e) => setRegPass(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Teléfono (Opcional)</label>
-                <input
-                  type="tel"
-                  placeholder="3001234567"
-                  className="auth-input"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Rol de Usuario</label>
-                <select
-                  className="auth-select"
-                  value={rol}
-                  onChange={(e) => setRol(e.target.value)}
-                  required
-                >
-                  <option value="1">Administrador</option>
-                  <option value="2">Vendedor</option>
-                  <option value="3">Cliente</option>
-                </select>
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit-btn" disabled={cargando}>
-              {cargando ? "Creando Cuenta..." : "Crear Cuenta"}
-            </button>
-
-            <div className="auth-footer">
-              ¿Ya tienes una cuenta?
-              <button type="button" className="auth-toggle-btn" onClick={toggleView}>
-                Inicia sesión
-              </button>
-            </div>
-          </form>
-        )}
+    <div className="auth-card card w-full max-w-md p-7 sm:p-8">
+      <div role="tablist" className="auth-tabs mb-6">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={esLogin}
+          onClick={() => cambiarModo("login")}
+          className={esLogin ? "is-active" : ""}
+        >
+          Iniciar sesión
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!esLogin}
+          onClick={() => cambiarModo("registro")}
+          className={!esLogin ? "is-active" : ""}
+        >
+          Registrarse
+        </button>
       </div>
+
+      <h2 className="text-xl font-extrabold text-foreground">{esLogin ? "Bienvenido de nuevo" : "Crea tu cuenta"}</h2>
+      <p className="mb-5 mt-1 text-sm text-muted-foreground">
+        {esLogin
+          ? "Ingresa tu correo y contraseña para continuar."
+          : "Completa tus datos para empezar a usar el sistema."}
+      </p>
+
+      {error && (
+        <div className="mb-4">
+          <Notice aviso={{ tipo: "error", texto: error }} />
+        </div>
+      )}
+
+      {esLogin ? (
+        <form onSubmit={enviarLogin} className="space-y-4">
+          <div>
+            <label htmlFor="login-correo" className="label">Correo electrónico</label>
+            <input
+              id="login-correo"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="correo@ejemplo.com"
+              className="input"
+              value={loginForm.correo}
+              onChange={(e) => setLoginForm({ ...loginForm, correo: e.target.value })}
+            />
+          </div>
+          <div>
+            <label htmlFor="login-clave" className="label">Contraseña</label>
+            <div className="relative">
+              <input
+                id="login-clave"
+                type={verClave ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                placeholder="Tu contraseña"
+                className="input pr-10"
+                value={loginForm.contraseña}
+                onChange={(e) => setLoginForm({ ...loginForm, contraseña: e.target.value })}
+              />
+              {botonClave}
+            </div>
+          </div>
+          <button type="submit" disabled={cargando} className="btn btn-primary w-full py-2.5">
+            {cargando && <Loader2 size={16} className="animate-spin" />}
+            {cargando ? "Ingresando..." : "Entrar"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={enviarRegistro} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="reg-nombre" className="label">Nombre</label>
+              <input
+                id="reg-nombre"
+                required
+                maxLength={100}
+                className="input"
+                value={registro.nombre}
+                onChange={(e) => setRegistro({ ...registro, nombre: e.target.value })}
+              />
+            </div>
+            <div>
+              <label htmlFor="reg-apellido" className="label">Apellido</label>
+              <input
+                id="reg-apellido"
+                required
+                maxLength={100}
+                className="input"
+                value={registro.apellido}
+                onChange={(e) => setRegistro({ ...registro, apellido: e.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="reg-correo" className="label">Correo electrónico</label>
+            <input
+              id="reg-correo"
+              type="email"
+              required
+              maxLength={150}
+              autoComplete="email"
+              className="input"
+              value={registro.correo}
+              onChange={(e) => setRegistro({ ...registro, correo: e.target.value })}
+            />
+          </div>
+          <div>
+            <label htmlFor="reg-clave" className="label">Contraseña</label>
+            <div className="relative">
+              <input
+                id="reg-clave"
+                type={verClave ? "text" : "password"}
+                required
+                minLength={6}
+                maxLength={255}
+                autoComplete="new-password"
+                placeholder="Mínimo 6 caracteres"
+                className="input pr-10"
+                value={registro.contraseña}
+                onChange={(e) => setRegistro({ ...registro, contraseña: e.target.value })}
+              />
+              {botonClave}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="reg-tel" className="label">Teléfono (opcional)</label>
+              <input
+                id="reg-tel"
+                type="tel"
+                maxLength={20}
+                className="input"
+                value={registro.telefono}
+                onChange={(e) => setRegistro({ ...registro, telefono: e.target.value })}
+              />
+            </div>
+            <div>
+              <label htmlFor="reg-rol" className="label">Rol</label>
+              <select
+                id="reg-rol"
+                className="input"
+                value={registro.rol}
+                onChange={(e) => setRegistro({ ...registro, rol: e.target.value })}
+              >
+                {ROLES.map((rol) => (
+                  <option key={rol.id} value={rol.id}>{rol.nombre}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button type="submit" disabled={cargando} className="btn btn-primary w-full py-2.5">
+            {cargando && <Loader2 size={16} className="animate-spin" />}
+            {cargando ? "Creando cuenta..." : "Crear cuenta"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
-export { AuthModal };

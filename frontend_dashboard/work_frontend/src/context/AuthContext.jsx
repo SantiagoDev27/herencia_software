@@ -3,40 +3,36 @@ import authService from "../service/authService";
 
 const AuthContext = createContext(null);
 
+const leerUsuarioGuardado = () => {
+    try {
+        const usuario = localStorage.getItem("usuario");
+        return usuario && localStorage.getItem("token") ? JSON.parse(usuario) : null;
+    } catch {
+        return null;
+    }
+};
+
 export function AuthProvider({ children }) {
     const [usuario, setUsuario] = useState(null);
     const [cargando, setCargando] = useState(true);
 
     useEffect(() => {
         // Al cargar la app, revisa si ya hay una sesión guardada
-        const usuarioGuardado = localStorage.getItem("usuario");
-        const token = localStorage.getItem("token");
-
-        if (usuarioGuardado && token) {
-            setUsuario(JSON.parse(usuarioGuardado));
-        }
+        setUsuario(leerUsuarioGuardado());
         setCargando(false);
     }, []);
 
-    const login = async (correo_usuario, contraseña_usuario) => {
-        const respuesta = await authService.login({ correo_usuario, contraseña_usuario });
-
+    const guardarSesion = (respuesta) => {
         localStorage.setItem("token", respuesta.token);
         localStorage.setItem("usuario", JSON.stringify(respuesta.data));
         setUsuario(respuesta.data);
-
         return respuesta;
     };
 
-    const registrar = async (datosUsuario) => {
-        const respuesta = await authService.registrar(datosUsuario);
+    const login = async (correo_usuario, contraseña_usuario) =>
+        guardarSesion(await authService.login({ correo_usuario, contraseña_usuario }));
 
-        localStorage.setItem("token", respuesta.token);
-        localStorage.setItem("usuario", JSON.stringify(respuesta.data));
-        setUsuario(respuesta.data);
-
-        return respuesta;
-    };
+    const registrar = async (datosUsuario) => guardarSesion(await authService.registrar(datosUsuario));
 
     const logout = () => {
         localStorage.removeItem("token");
@@ -51,6 +47,7 @@ export function AuthProvider({ children }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
     return useContext(AuthContext);
 }

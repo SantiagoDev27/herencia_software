@@ -1,10 +1,9 @@
-import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { ChevronRight, ChevronDown, LogOut } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, LogOut, X } from "lucide-react";
 import { navSections } from "../../config/navSections";
 import { useAuth } from "../../context/AuthContext";
 
-export function Sidebar({ collapsed, onCollapse }) {
+export function Sidebar({ collapsed, onCollapse, mobileOpen, onCloseMobile }) {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -18,109 +17,108 @@ export function Sidebar({ collapsed, onCollapse }) {
     ? `${usuario.nombre_usuario?.[0] ?? ""}${usuario.apellido_usuario?.[0] ?? ""}`.toUpperCase()
     : "??";
 
+  // En pantallas pequeñas la barra es un cajón que se abre con el botón de menú;
+  // en md+ es fija y puede colapsarse a solo iconos.
+  const ocultarEtiqueta = collapsed ? "md:hidden" : "";
+
   return (
-    <aside
-      className={`fixed inset-y-0 left-0 z-30 flex flex-col transition-all duration-300 ${
-        collapsed ? "w-16" : "w-60"
-      }`}
-      style={{ background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)" }}
-    >
-      {/* Marca */}
-      <div
-        className="flex items-center gap-3 px-4 py-5 border-b"
-        style={{ borderColor: "var(--sidebar-border)" }}
+    <>
+      {mobileOpen && (
+        <div className="fixed inset-0 z-30 bg-[#1D3B2B]/45 md:hidden" onClick={onCloseMobile} aria-hidden="true" />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 md:translate-x-0 ${
+          collapsed ? "md:w-16" : "md:w-60"
+        } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold shadow-sm">
-          HP
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <p className="text-white text-sm font-semibold leading-tight truncate">
-              Herencia de Papá
-            </p>
-            <p className="text-[11px] leading-tight text-slate-400">
-              Sistema ERP
-            </p>
+        {/* Marca */}
+        <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-5">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-extrabold text-sidebar-primary-foreground shadow-sm">
+            HP
           </div>
-        )}
-        <button
-          onClick={onCollapse}
-          className="ml-auto p-1 rounded hover:bg-white/10 transition-colors text-slate-400 hover:text-white flex-shrink-0"
-        >
-          {collapsed ? (
-            <ChevronRight size={14} />
-          ) : (
-            <ChevronDown size={14} style={{ transform: "rotate(-90deg)" }} />
-          )}
-        </button>
-      </div>
-      
-      {/* Navegación */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-5">
-        {navSections.map((section) => (
-          <div key={section.label}>
-            {!collapsed && (
+          <div className={`min-w-0 ${ocultarEtiqueta}`}>
+            <p className="truncate font-display text-[15px] font-bold leading-tight text-white">Herencia de Papá</p>
+            <p className="text-[11px] leading-tight text-sidebar-foreground/70">Sistema ERP</p>
+          </div>
+          <button
+            onClick={onCollapse}
+            className="ml-auto hidden flex-shrink-0 rounded-lg p-1 text-sidebar-foreground/70 transition-colors hover:bg-white/10 hover:text-white md:block"
+            aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
+          >
+            {collapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
+          </button>
+          <button
+            onClick={onCloseMobile}
+            className="ml-auto rounded-lg p-1 text-sidebar-foreground/70 hover:bg-white/10 hover:text-white md:hidden"
+            aria-label="Cerrar menú"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Navegación */}
+        <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-4">
+          {navSections.map((section) => (
+            <div key={section.label}>
               <p
-                className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest"
-                style={{ color: "rgba(148,163,184,0.6)" }}
+                className={`mb-1 px-2 text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/55 ${ocultarEtiqueta}`}
               >
                 {section.label}
               </p>
-            )}
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.id}
-                    to={item.path}
-                    end={item.path === ""}
-                    title={collapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      `w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-                        isActive
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-slate-400 hover:bg-white/8 hover:text-slate-200"
-                      } ${collapsed ? "justify-center" : ""}`
-                    }
-                  >
-                    <Icon size={16} className="flex-shrink-0" />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
-                  </NavLink>
-                );
-              })}
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.id}
+                      to={item.path}
+                      end={item.path === ""}
+                      onClick={onCloseMobile}
+                      title={collapsed ? item.label : undefined}
+                      className={({ isActive }) =>
+                        `flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-semibold transition-all duration-150 ${
+                          isActive
+                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
+                        } ${collapsed ? "md:justify-center" : ""}`
+                      }
+                    >
+                      <Icon size={17} className="flex-shrink-0" />
+                      <span className={`truncate ${ocultarEtiqueta}`}>{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
 
-      {/* Sesión */}
-      <div className="p-3 border-t" style={{ borderColor: "var(--sidebar-border)" }}>
-        <button
-          onClick={handleLogout}
-          className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm text-slate-400 hover:bg-red-500/15 hover:text-red-400 transition-colors ${
-            collapsed ? "justify-center" : ""
-          }`}
-        >
-          <LogOut size={16} />
-          {!collapsed && <span>Cerrar sesión</span>}
-        </button>
-        {!collapsed && (
-          <div className="mt-3 flex items-center gap-2 px-2">
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+        {/* Sesión */}
+        <div className="border-t border-sidebar-border p-3">
+          <div className={`mb-2 flex items-center gap-2.5 px-1 ${ocultarEtiqueta}`}>
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
               {iniciales}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-slate-300 truncate">
+              <p className="truncate text-xs font-bold text-white">
                 {usuario ? `${usuario.nombre_usuario} ${usuario.apellido_usuario}` : "Usuario"}
               </p>
-              <p className="text-[10px] truncate" style={{ color: "var(--sidebar-foreground)" }}>
-                {usuario?.rol?.nombre_rol ?? "—"}
-              </p>
+              <p className="truncate text-[10px] text-sidebar-foreground/70">{usuario?.rol?.nombre_rol ?? "—"}</p>
             </div>
           </div>
-        )}
-      </div>
-    </aside>
+          <button
+            onClick={handleLogout}
+            title="Cerrar sesión"
+            className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-white/10 hover:text-white ${
+              collapsed ? "md:justify-center" : ""
+            }`}
+          >
+            <LogOut size={16} />
+            <span className={ocultarEtiqueta}>Cerrar sesión</span>
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

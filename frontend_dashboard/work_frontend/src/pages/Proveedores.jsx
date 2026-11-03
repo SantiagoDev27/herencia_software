@@ -1,63 +1,59 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  Truck, Plus, Search, RefreshCw, Trash2, Edit, CheckCircle, RotateCcw,
-  Phone, MapPin, Building, Package, Link2, X
+  Truck, Plus, Search, RefreshCw, Trash2, Pencil, Phone, MapPin, Package, Link2, Check, X,
 } from "lucide-react";
 import proveedorService from "../service/proveedorService";
 import productoService from "../service/productoService";
+import { PageHeader } from "../components/ui/PageHeader";
+import { Modal, ConfirmDialog } from "../components/ui/Modal";
+import { Notice } from "../components/ui/Notice";
+import { fmtCOP, toList } from "../lib/format";
+
+const FORM_VACIO = { nit: "", razon_social: "", telefono_proveedor: "", direccion: "", ciudad: "Cali" };
 
 export default function Proveedores() {
   const [proveedores, setProveedores] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
+  const [aviso, setAviso] = useState(null);
+
   const [modalAbierto, setModalAbierto] = useState(false);
   const [proveedorEditando, setProveedorEditando] = useState(null);
+  const [form, setForm] = useState(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState("");
 
-  // Modal para ver/asociar productos
-  const [modalAsociacion, setModalAsociacion] = useState(false);
-  const [proveedorSeleccionado, setProveedorSeleccionado] = useState(null);
-  const [productosProveedor, setProductosProveedor] = useState([]);
+  const [porEliminar, setPorEliminar] = useState(null);
+  const [eliminando, setEliminando] = useState(false);
+
+  // Catálogo (productos que ofrece el proveedor y a qué precio)
+  const [proveedorCatalogo, setProveedorCatalogo] = useState(null);
+  const [asociaciones, setAsociaciones] = useState([]);
   const [todosProductos, setTodosProductos] = useState([]);
   const [formAsociacion, setFormAsociacion] = useState({ id_producto: "", precio_compra: "" });
+  const [errorCatalogo, setErrorCatalogo] = useState("");
+  const [editandoPrecio, setEditandoPrecio] = useState(null); // { id, valor }
 
-  const [form, setForm] = useState({
-    nit: "",
-    razon_social: "",
-    telefono_proveedor: "",
-    direccion: "",
-    ciudad: "",
-  });
-
-  const cargarProveedores = async () => {
+  const cargarProveedores = useCallback(async () => {
     setCargando(true);
     try {
-      const res = await proveedorService.obtenerTodos();
-      const pData = res?.data;
-      setProveedores(Array.isArray(pData) ? pData : pData?.proveedores || []);
+      setProveedores(toList(await proveedorService.obtenerTodos()));
     } catch (err) {
-      console.error("Error al cargar proveedores:", err);
       setProveedores([]);
+      setAviso({ tipo: "error", texto: err.mensaje });
     } finally {
       setCargando(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     cargarProveedores();
-  }, []);
+  }, [cargarProveedores]);
 
   const abrirModalNuevo = () => {
     setProveedorEditando(null);
     setErrorModal("");
-    setForm({
-      nit: "",
-      razon_social: "",
-      telefono_proveedor: "",
-      direccion: "",
-      ciudad: "Cali",
-    });
+    setForm(FORM_VACIO);
     setModalAbierto(true);
   };
 
@@ -65,11 +61,11 @@ export default function Proveedores() {
     setProveedorEditando(prov);
     setErrorModal("");
     setForm({
-      nit: prov.nit || "",
-      razon_social: prov.razon_social || "",
-      telefono_proveedor: prov.telefono_proveedor || "",
-      direccion: prov.direccion || "",
-      ciudad: prov.ciudad || "",
+      nit: String(prov.nit ?? ""),
+      razon_social: prov.razon_social ?? "",
+      telefono_proveedor: prov.telefono_proveedor ?? "",
+      direccion: prov.direccion ?? "",
+      ciudad: prov.ciudad ?? "",
     });
     setModalAbierto(true);
   };
@@ -78,19 +74,23 @@ export default function Proveedores() {
     e.preventDefault();
     setErrorModal("");
     setGuardando(true);
-
     try {
+      // El NIT se envía siempre como texto (el backend valida el formato 900123456-7)
       const payload = {
-        ...form,
-        nit: Number(form.nit) || form.nit,
+        nit: form.nit.trim(),
+        razon_social: form.razon_social.trim(),
+        telefono_proveedor: form.telefono_proveedor.trim(),
+        direccion: form.direccion.trim(),
+        ciudad: form.ciudad.trim() || null,
       };
 
       if (proveedorEditando) {
-        await proveedorService.actualizar(proveedorEditando.id_proveedor || proveedorEditando.id, payload);
+        await proveedorService.actualizar(proveedorEditando.id_proveedor, payload);
+        setAviso({ tipo: "success", texto: `Proveedor "${payload.razon_social}" actualizado.` });
       } else {
         await proveedorService.crear(payload);
+        setAviso({ tipo: "success", texto: `Proveedor "${payload.razon_social}" registrado.` });
       }
-
       setModalAbierto(false);
       cargarProveedores();
     } catch (err) {
@@ -100,371 +100,360 @@ export default function Proveedores() {
     }
   };
 
-  const eliminarProveedor = async (id) => {
-    if (!window.confirm("¿Seguro que deseas desactivar este proveedor?")) return;
+  const confirmarEliminar = async () => {
+    setEliminando(true);
     try {
-      await proveedorService.eliminar(id);
+      await proveedorService.eliminar(porEliminar.id_proveedor);
+      setAviso({ tipo: "success", texto: `Proveedor "${porEliminar.razon_social}" desactivado.` });
       cargarProveedores();
     } catch (err) {
-      alert(err.mensaje || "Error al eliminar proveedor.");
+      setAviso({ tipo: "error", texto: err.mensaje || "No se pudo desactivar el proveedor." });
+    } finally {
+      setEliminando(false);
+      setPorEliminar(null);
     }
   };
 
-  const abrirAsociaciones = async (prov) => {
-    setProveedorSeleccionado(prov);
-    setModalAsociacion(true);
+  // ---- Catálogo del proveedor -------------------------------------------------
+  const recargarAsociaciones = async (idProveedor) => {
+    setAsociaciones(toList(await proveedorService.obtenerProductosDeProveedor(idProveedor)));
+  };
+
+  const abrirCatalogo = async (prov) => {
+    setProveedorCatalogo(prov);
+    setErrorCatalogo("");
+    setEditandoPrecio(null);
+    setAsociaciones([]);
+    setFormAsociacion({ id_producto: "", precio_compra: "" });
     try {
-      const [resProdProv, resTodos] = await Promise.all([
-        proveedorService.obtenerProductosDeProveedor(prov.id_proveedor || prov.id),
+      const [, resProductos] = await Promise.all([
+        recargarAsociaciones(prov.id_proveedor),
         productoService.obtenerTodos(),
       ]);
-      const ppData = resProdProv?.data;
-      const tData = resTodos?.data;
-      const arrPP = Array.isArray(ppData) ? ppData : ppData?.productos || [];
-      const arrTodos = Array.isArray(tData) ? tData : tData?.productos || [];
-
-      setProductosProveedor(arrPP);
-      setTodosProductos(arrTodos);
-      if (arrTodos.length > 0) {
-        setFormAsociacion({
-          id_producto: arrTodos[0].id_producto || arrTodos[0].id,
-          precio_compra: "",
-        });
-      }
+      setTodosProductos(toList(resProductos));
     } catch (err) {
-      console.error("Error al cargar productos de proveedor:", err);
+      setErrorCatalogo(err.mensaje);
     }
   };
+
+  // Solo se pueden vincular productos que el proveedor todavía no ofrece
+  const idsVinculados = new Set(asociaciones.map((a) => a.fk_producto_proveedor_id_producto));
+  const disponibles = todosProductos.filter((p) => !idsVinculados.has(p.id_producto));
 
   const agregarAsociacion = async (e) => {
     e.preventDefault();
-    if (!proveedorSeleccionado || !formAsociacion.id_producto || !formAsociacion.precio_compra) return;
-
+    setErrorCatalogo("");
+    const idProducto = Number(formAsociacion.id_producto || disponibles[0]?.id_producto);
+    if (!idProducto) return;
     try {
-      await proveedorService.asociarProducto(
-        proveedorSeleccionado.id_proveedor || proveedorSeleccionado.id,
-        {
-          fk_producto_proveedor_id_producto: Number(formAsociacion.id_producto),
-          precio_compra: Number(formAsociacion.precio_compra),
-        }
-      );
-      // Recargar asociados
-      const res = await proveedorService.obtenerProductosDeProveedor(
-        proveedorSeleccionado.id_proveedor || proveedorSeleccionado.id
-      );
-      const ppData = res?.data;
-      setProductosProveedor(Array.isArray(ppData) ? ppData : ppData?.productos || []);
-      setFormAsociacion({ ...formAsociacion, precio_compra: "" });
+      await proveedorService.asociarProducto(proveedorCatalogo.id_proveedor, {
+        fk_producto_proveedor_id_producto: idProducto,
+        precio_compra: Number(formAsociacion.precio_compra),
+      });
+      await recargarAsociaciones(proveedorCatalogo.id_proveedor);
+      setFormAsociacion({ id_producto: "", precio_compra: "" });
     } catch (err) {
-      alert(err.mensaje || "Error al asociar producto.");
+      setErrorCatalogo(err.mensaje || "Error al vincular el producto.");
     }
   };
 
-  const listaProveedores = Array.isArray(proveedores) ? proveedores : [];
-  const proveedoresFiltrados = listaProveedores.filter((p) => {
-    const term = busqueda.toLowerCase();
+  const guardarPrecio = async (asociacion) => {
+    setErrorCatalogo("");
+    try {
+      await proveedorService.actualizarPrecioCompra(asociacion.id_proveedor_producto, {
+        precio_compra: Number(editandoPrecio.valor),
+      });
+      setEditandoPrecio(null);
+      await recargarAsociaciones(proveedorCatalogo.id_proveedor);
+    } catch (err) {
+      setErrorCatalogo(err.mensaje || "No se pudo actualizar el precio.");
+    }
+  };
+
+  const desvincular = async (asociacion) => {
+    setErrorCatalogo("");
+    try {
+      await proveedorService.eliminarAsociacion(asociacion.id_proveedor_producto);
+      await recargarAsociaciones(proveedorCatalogo.id_proveedor);
+    } catch (err) {
+      setErrorCatalogo(err.mensaje || "No se pudo desvincular el producto.");
+    }
+  };
+
+  const proveedoresFiltrados = proveedores.filter((p) => {
+    const term = busqueda.trim().toLowerCase();
+    if (!term) return true;
     return (
       p.razon_social?.toLowerCase().includes(term) ||
-      String(p.nit || "").toLowerCase().includes(term) ||
+      String(p.nit ?? "").toLowerCase().includes(term) ||
       p.ciudad?.toLowerCase().includes(term)
     );
   });
 
-  const fmt = (n) =>
-    new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n || 0);
+  const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value });
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">Directorio de Proveedores</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Gestiona información de contacto y catálogos de compra con tus proveedores.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={cargarProveedores}
-            className="p-2 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            title="Recargar"
-          >
-            <RefreshCw size={16} className={cargando ? "animate-spin" : ""} />
-          </button>
-          <button
-            onClick={abrirModalNuevo}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
-          >
-            <Plus size={16} />
-            Nuevo Proveedor
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5 p-4 sm:p-6">
+      <PageHeader
+        title="Directorio de proveedores"
+        description="Información de contacto y catálogo de compra de cada proveedor."
+      >
+        <button onClick={cargarProveedores} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
+          <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
+        </button>
+        <button onClick={abrirModalNuevo} className="btn btn-primary">
+          <Plus size={16} />
+          Nuevo proveedor
+        </button>
+      </PageHeader>
 
-      {/* Buscador */}
-      <div className="flex items-center gap-2 bg-card border border-border rounded-xl p-3 shadow-sm max-w-md">
-        <Search size={16} className="text-muted-foreground flex-shrink-0" />
+      <Notice aviso={aviso} onClose={() => setAviso(null)} />
+
+      <div className="card flex max-w-md items-center gap-2 p-3">
+        <Search size={15} className="flex-shrink-0 text-muted-foreground" />
         <input
           type="text"
           placeholder="Buscar por NIT, nombre o ciudad..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground"
+          aria-label="Buscar proveedores"
+          className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
       </div>
 
-      {/* Grid de Proveedores */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {cargando ? (
-          <div className="col-span-full text-center py-12 text-muted-foreground text-xs">
-            Cargando proveedores...
-          </div>
+          <div className="col-span-full py-12 text-center text-xs text-muted-foreground">Cargando proveedores...</div>
         ) : proveedoresFiltrados.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-muted-foreground text-xs">
+          <div className="col-span-full py-12 text-center text-xs text-muted-foreground">
             No se encontraron proveedores registrados.
           </div>
         ) : (
-          proveedoresFiltrados.map((p) => {
-            const id = p.id_proveedor || p.id;
-            return (
-              <div
-                key={id}
-                className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
-                      <Truck size={20} />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => abrirAsociaciones(p)}
-                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-600 transition-colors"
-                        title="Ver / Asociar productos"
-                      >
-                        <Link2 size={15} />
-                      </button>
-                      <button
-                        onClick={() => abrirModalEditar(p)}
-                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-600 transition-colors"
-                        title="Editar"
-                      >
-                        <Edit size={15} />
-                      </button>
-                      <button
-                        onClick={() => eliminarProveedor(id)}
-                        className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-red-500 transition-colors"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+          proveedoresFiltrados.map((p) => (
+            <div key={p.id_proveedor} className="card flex flex-col justify-between p-5 transition-shadow hover:shadow-md">
+              <div>
+                <div className="mb-3 flex items-start justify-between gap-2">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+                    <Truck size={20} />
                   </div>
-
-                  <h3 className="font-semibold text-foreground text-base leading-snug">{p.razon_social}</h3>
-                  <p className="text-xs font-mono text-muted-foreground mt-0.5">NIT: {p.nit}</p>
-
-                  <div className="mt-4 space-y-2 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Phone size={13} className="text-slate-400" />
-                      <span>{p.telefono_proveedor || "Sin teléfono"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin size={13} className="text-slate-400" />
-                      <span>{p.direccion ? `${p.direccion}, ${p.ciudad || ""}` : p.ciudad || "Sin dirección"}</span>
-                    </div>
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => abrirCatalogo(p)} className="btn-icon hover:text-primary" title="Catálogo de productos" aria-label="Catálogo de productos">
+                      <Link2 size={15} />
+                    </button>
+                    <button onClick={() => abrirModalEditar(p)} className="btn-icon hover:text-primary" title="Editar" aria-label="Editar proveedor">
+                      <Pencil size={15} />
+                    </button>
+                    <button onClick={() => setPorEliminar(p)} className="btn-icon hover:text-destructive" title="Desactivar" aria-label="Desactivar proveedor">
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-border flex items-center justify-between">
-                  <button
-                    onClick={() => abrirAsociaciones(p)}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1.5"
-                  >
-                    <Package size={13} />
-                    Catálogo de Productos
-                  </button>
+                <h3 className="text-base font-extrabold leading-snug text-foreground">{p.razon_social}</h3>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">NIT: {p.nit}</p>
+
+                <div className="mt-4 space-y-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Phone size={13} className="text-primary" />
+                    <span>{p.telefono_proveedor || "Sin teléfono"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin size={13} className="text-primary" />
+                    <span>{[p.direccion, p.ciudad].filter(Boolean).join(", ") || "Sin dirección"}</span>
+                  </div>
                 </div>
               </div>
-            );
-          })
+
+              <div className="mt-5 border-t border-border pt-3">
+                <button onClick={() => abrirCatalogo(p)} className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-hover">
+                  <Package size={13} />
+                  Catálogo de productos
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {/* Modal Crear / Editar Proveedor */}
-      {modalAbierto && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95">
-            <h3 className="text-base font-bold text-foreground mb-1">
-              {proveedorEditando ? "Editar Proveedor" : "Registrar Nuevo Proveedor"}
-            </h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Ingresa los datos comerciales del proveedor.
-            </p>
+      {/* Crear / editar proveedor */}
+      <Modal
+        open={modalAbierto}
+        onClose={() => setModalAbierto(false)}
+        title={proveedorEditando ? "Editar proveedor" : "Registrar nuevo proveedor"}
+        subtitle="Ingresa los datos comerciales del proveedor."
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={guardarProveedor} className="space-y-3.5">
+          <Notice aviso={errorModal ? { tipo: "error", texto: errorModal } : null} />
 
-            {errorModal && (
-              <div className="p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs font-medium">
-                {errorModal}
-              </div>
+          <div>
+            <label className="label" htmlFor="pv-nit">NIT *</label>
+            <input
+              id="pv-nit"
+              required
+              maxLength={20}
+              pattern="\d{5,10}-?\d?"
+              title="Formato válido: 900123456 o 900123456-7"
+              placeholder="900123456-7"
+              className="input"
+              value={form.nit}
+              onChange={set("nit")}
+            />
+            <p className="hint">Entre 5 y 10 dígitos, con dígito de verificación opcional.</p>
+          </div>
+
+          <div>
+            <label className="label" htmlFor="pv-razon">Razón social *</label>
+            <input id="pv-razon" required maxLength={100} placeholder="Distribuidora del Valle S.A.S." className="input" value={form.razon_social} onChange={set("razon_social")} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label" htmlFor="pv-tel">Teléfono *</label>
+              <input id="pv-tel" type="tel" required maxLength={45} pattern="[0-9+\-\s()]+" title="Solo números, espacios, +, - y paréntesis" placeholder="3101234567" className="input" value={form.telefono_proveedor} onChange={set("telefono_proveedor")} />
+            </div>
+            <div>
+              <label className="label" htmlFor="pv-ciudad">Ciudad</label>
+              <input id="pv-ciudad" maxLength={45} placeholder="Cali" className="input" value={form.ciudad} onChange={set("ciudad")} />
+            </div>
+          </div>
+
+          <div>
+            <label className="label" htmlFor="pv-dir">Dirección *</label>
+            <input id="pv-dir" required maxLength={45} placeholder="Calle 10 # 5-20" className="input" value={form.direccion} onChange={set("direccion")} />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+            <button type="button" onClick={() => setModalAbierto(false)} className="btn btn-outline btn-sm">
+              Cancelar
+            </button>
+            <button type="submit" disabled={guardando} className="btn btn-primary btn-sm">
+              {guardando ? "Guardando..." : "Guardar proveedor"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Catálogo del proveedor */}
+      <Modal
+        open={!!proveedorCatalogo}
+        onClose={() => setProveedorCatalogo(null)}
+        title={`Catálogo: ${proveedorCatalogo?.razon_social ?? ""}`}
+        subtitle="Productos que ofrece y precio de compra pactado."
+      >
+        <div className="space-y-4">
+          <Notice aviso={errorCatalogo ? { tipo: "error", texto: errorCatalogo } : null} />
+
+          <form onSubmit={agregarAsociacion} className="space-y-2 rounded-xl border border-border bg-muted/60 p-3">
+            <p className="text-xs font-bold text-foreground">Vincular producto</p>
+            {disponibles.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {todosProductos.length === 0
+                  ? "Aún no hay productos en el catálogo. Regístralos primero en Productos."
+                  : "Este proveedor ya ofrece todos los productos del catálogo."}
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <select
+                    value={formAsociacion.id_producto || disponibles[0].id_producto}
+                    onChange={(e) => setFormAsociacion({ ...formAsociacion, id_producto: e.target.value })}
+                    className="input"
+                    aria-label="Producto"
+                  >
+                    {disponibles.map((prod) => (
+                      <option key={prod.id_producto} value={prod.id_producto}>
+                        {prod.codigo_producto} · {prod.nombre_producto}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    required
+                    min="0.01"
+                    step="any"
+                    placeholder="Precio de compra ($)"
+                    aria-label="Precio de compra"
+                    value={formAsociacion.precio_compra}
+                    onChange={(e) => setFormAsociacion({ ...formAsociacion, precio_compra: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <button type="submit" className="btn btn-primary btn-sm w-full">
+                  <Plus size={14} /> Vincular al proveedor
+                </button>
+              </>
             )}
+          </form>
 
-            <form onSubmit={guardarProveedor} className="space-y-3.5">
-              <div>
-                <label className="text-xs font-medium text-foreground block mb-1">NIT / Identificación *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. 900123456-1"
-                  value={form.nit}
-                  onChange={(e) => setForm({ ...form, nit: e.target.value })}
-                  className="w-full px-3 py-2 bg-muted rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-foreground block mb-1">Razón Social *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. Distribuidora del Valle S.A.S."
-                  value={form.razon_social}
-                  onChange={(e) => setForm({ ...form, razon_social: e.target.value })}
-                  className="w-full px-3 py-2 bg-muted rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-foreground block mb-1">Teléfono</label>
-                  <input
-                    type="tel"
-                    placeholder="3101234567"
-                    value={form.telefono_proveedor}
-                    onChange={(e) => setForm({ ...form, telefono_proveedor: e.target.value })}
-                    className="w-full px-3 py-2 bg-muted rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground block mb-1">Ciudad</label>
-                  <input
-                    type="text"
-                    placeholder="Cali"
-                    value={form.ciudad}
-                    onChange={(e) => setForm({ ...form, ciudad: e.target.value })}
-                    className="w-full px-3 py-2 bg-muted rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-foreground block mb-1">Dirección</label>
-                <input
-                  type="text"
-                  placeholder="Calle 10 # 5-20"
-                  value={form.direccion}
-                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-                  className="w-full px-3 py-2 bg-muted rounded-lg text-xs outline-none border border-transparent focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border mt-4">
-                <button
-                  type="button"
-                  onClick={() => setModalAbierto(false)}
-                  className="px-4 py-2 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={guardando}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
-                >
-                  {guardando ? "Guardando..." : "Guardar Proveedor"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Asociar Productos */}
-      {modalAsociacion && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-base font-bold text-foreground">
-                  Catálogo: {proveedorSeleccionado?.razon_social}
-                </h3>
-                <p className="text-xs text-muted-foreground">Productos y precios de compra pactados.</p>
-              </div>
-              <button
-                onClick={() => setModalAsociacion(false)}
-                className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Formulario para agregar producto al proveedor */}
-            <form onSubmit={agregarAsociacion} className="p-3 bg-muted/40 rounded-xl border border-border mb-4 space-y-2">
-              <p className="text-xs font-semibold text-foreground">Vincular Producto</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <select
-                  value={formAsociacion.id_producto}
-                  onChange={(e) => setFormAsociacion({ ...formAsociacion, id_producto: e.target.value })}
-                  className="px-2.5 py-1.5 bg-card rounded-lg text-xs outline-none border border-border"
-                >
-                  {todosProductos.map((prod) => (
-                    <option key={prod.id_producto || prod.id} value={prod.id_producto || prod.id}>
-                      {prod.codigo_producto} - {prod.nombre_producto}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="any"
-                  placeholder="Precio de compra ($)"
-                  value={formAsociacion.precio_compra}
-                  onChange={(e) => setFormAsociacion({ ...formAsociacion, precio_compra: e.target.value })}
-                  className="px-2.5 py-1.5 bg-card rounded-lg text-xs outline-none border border-border"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors"
-              >
-                + Vincular al Proveedor
-              </button>
-            </form>
-
-            {/* Listado de Productos asociados */}
-            <div className="max-h-60 overflow-y-auto space-y-1.5 divide-y divide-border">
-              {productosProveedor.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">
-                  No hay productos vinculados a este proveedor aún.
-                </p>
-              ) : (
-                productosProveedor.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 text-xs">
-                    <div>
-                      <p className="font-semibold text-foreground">{item.nombre_producto || `Producto #${item.fk_producto_proveedor_id_producto}`}</p>
-                      <p className="text-muted-foreground font-mono text-[11px]">Código: {item.codigo_producto || "—"}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-blue-600">{fmt(item.precio_compra || item.ProductoProveedor?.precio_compra)}</p>
-                      <p className="text-[10px] text-muted-foreground">Precio compra pactado</p>
-                    </div>
+          <div className="max-h-64 divide-y divide-border overflow-y-auto">
+            {asociaciones.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">No hay productos vinculados a este proveedor aún.</p>
+            ) : (
+              asociaciones.map((item) => (
+                <div key={item.id_proveedor_producto} className="flex items-center justify-between gap-3 py-2.5 text-xs">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-foreground">
+                      {item.producto?.nombre_producto ?? `Producto #${item.fk_producto_proveedor_id_producto}`}
+                    </p>
+                    <p className="font-mono text-[11px] text-muted-foreground">Código: {item.producto?.codigo_producto ?? "—"}</p>
                   </div>
-                ))
-              )}
-            </div>
+
+                  <div className="flex flex-shrink-0 items-center gap-1.5">
+                    {editandoPrecio?.id === item.id_proveedor_producto ? (
+                      <>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="any"
+                          autoFocus
+                          value={editandoPrecio.valor}
+                          onChange={(e) => setEditandoPrecio({ ...editandoPrecio, valor: e.target.value })}
+                          className="input w-28 py-1 text-xs"
+                          aria-label="Nuevo precio de compra"
+                        />
+                        <button onClick={() => guardarPrecio(item)} className="btn-icon text-primary" aria-label="Guardar precio">
+                          <Check size={15} />
+                        </button>
+                        <button onClick={() => setEditandoPrecio(null)} className="btn-icon" aria-label="Cancelar">
+                          <X size={15} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-right">
+                          <p className="font-extrabold text-primary">{fmtCOP(item.precio_compra)}</p>
+                          <p className="text-[10px] text-muted-foreground">Precio de compra</p>
+                        </div>
+                        <button
+                          onClick={() => setEditandoPrecio({ id: item.id_proveedor_producto, valor: item.precio_compra })}
+                          className="btn-icon hover:text-primary"
+                          aria-label="Editar precio"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => desvincular(item)} className="btn-icon hover:text-destructive" aria-label="Desvincular producto">
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      )}
+      </Modal>
+
+      <ConfirmDialog
+        open={!!porEliminar}
+        titulo="Desactivar proveedor"
+        mensaje={`¿Seguro que deseas desactivar a "${porEliminar?.razon_social}"? Se conserva su historial pero dejará de aparecer en el listado.`}
+        textoConfirmar="Desactivar"
+        cargando={eliminando}
+        onConfirm={confirmarEliminar}
+        onCancel={() => setPorEliminar(null)}
+      />
     </div>
   );
 }

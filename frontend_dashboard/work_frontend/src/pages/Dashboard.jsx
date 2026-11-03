@@ -1,314 +1,309 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
-  Package, TrendingUp, TrendingDown, Wallet, Users, CheckCircle, XCircle,
-  DollarSign, ShoppingCart, ArrowUpCircle, ArrowDownCircle, Truck,
-  AlertTriangle, ArrowRight, RefreshCw, AlertCircle, Clock
+  Package, TrendingUp, Wallet, CheckCircle, XCircle, Truck,
+  AlertTriangle, ArrowRight, RefreshCw, Clock,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { KpiCard } from "../components/dashboard/KpiCard";
+import { PageHeader } from "../components/ui/PageHeader";
+import { Notice } from "../components/ui/Notice";
+import { Badge } from "../components/ui/Badge";
 import reporteService from "../service/reporteService";
-import productoService from "../service/productoService";
 import ventaService from "../service/ventaService";
+import movimientoService from "../service/movimientoService";
 import notificacionService from "../service/notificacionService";
 import proveedorService from "../service/proveedorService";
+import { fmtCOP, fmtCompacto, fmtFecha, toList, mesKey, mesCorto } from "../lib/format";
 
-const CHART_COLORS = ["#2563EB", "#22C55E", "#F59E0B", "#0EA5E9", "#8B5CF6"];
+// Mismos colores que los tokens --chart-* de index.css (recharts necesita valores literales)
+const VERDE = "#25794D";
+const AZUL = "#7CC4EA";
+const AMARILLO = "#F2D55C";
+const COLORES_PIE = [VERDE, AZUL, AMARILLO, "#8ED3A8", "#4A9CC9"];
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n || 0);
+const estiloTooltip = { borderRadius: 12, border: "1px solid #E1EBE2", fontSize: 12 };
+const ejeTick = { fontSize: 11, fill: "#587063" };
 
-const StatusBadge = ({ status }) => {
-  const map = {
-    Disponible: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "Bajo Stock": "bg-amber-50 text-amber-700 border-amber-200",
-    Agotado: "bg-red-50 text-red-600 border-red-200",
-    Pagada: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Pendiente: "bg-amber-50 text-amber-700 border-amber-200",
-  };
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-        map[status] ?? "bg-gray-100 text-gray-600 border-gray-200"
-      }`}
-    >
-      {status}
-    </span>
-  );
+// Últimos 6 meses (incluye el actual) como claves "YYYY-MM"
+const ultimosMeses = (cantidad = 6) => {
+  const hoy = new Date();
+  return Array.from({ length: cantidad }, (_, i) => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - (cantidad - 1 - i), 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
 };
 
 export function Dashboard() {
   const [cargando, setCargando] = useState(true);
+  const [aviso, setAviso] = useState(null);
   const [reporte, setReporte] = useState(null);
-  const [productos, setProductos] = useState([]);
-  const [ventas, setVentas] = useState([]);
+  const [ventas, setVentas] = useState({ lista: [], total: 0 });
+  const [ingresos, setIngresos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
-  const [notificaciones, setNotificaciones] = useState({ stockMinimo: [], proximosVencer: [], agotados: [] });
+  const [alertas, setAlertas] = useState({ stockMinimo: [], proximosVencer: [], agotados: [] });
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setCargando(true);
-    try {
-      const [resRep, resProd, resVentas, resProv, resNotif] = await Promise.allSettled([
-        reporteService.obtenerReporteInventario(),
-        productoService.obtenerTodos(),
-        ventaService.listarVentas(),
-        proveedorService.obtenerTodos(),
-        notificacionService.obtenerTodas(),
-      ]);
+    const [resRep, resVentas, resIng, resProv, resAlertas] = await Promise.allSettled([
+      reporteService.obtenerReporteInventario(),
+      ventaService.listarVentas({ pagina: 1, limite: 100 }),
+      movimientoService.listarIngresos(),
+      proveedorService.obtenerTodos(),
+      notificacionService.obtenerTodas(),
+    ]);
 
-      if (resRep.status === "fulfilled") setReporte(resRep.value?.data);
-      if (resProd.status === "fulfilled") {
-        const prodData = resProd.value?.data;
-        setProductos(Array.isArray(prodData) ? prodData : prodData?.productos || []);
-      }
-      if (resVentas.status === "fulfilled") {
-        const vData = resVentas.value?.data;
-        setVentas(Array.isArray(vData) ? vData : vData?.ventas || []);
-      }
-      if (resProv.status === "fulfilled") {
-        const provData = resProv.value?.data;
-        setProveedores(Array.isArray(provData) ? provData : provData?.proveedores || []);
-      }
-      if (resNotif.status === "fulfilled") setNotificaciones(resNotif.value || {});
-    } catch (err) {
-      console.error("Error al cargar datos de dashboard:", err);
-    } finally {
-      setCargando(false);
-    }
-  };
+    setReporte(resRep.status === "fulfilled" ? resRep.value?.data ?? null : null);
+    setVentas(
+      resVentas.status === "fulfilled"
+        ? { lista: toList(resVentas.value, "ventas"), total: resVentas.value?.data?.total ?? 0 }
+        : { lista: [], total: 0 }
+    );
+    setIngresos(resIng.status === "fulfilled" ? toList(resIng.value) : []);
+    setProveedores(resProv.status === "fulfilled" ? toList(resProv.value) : []);
+    if (resAlertas.status === "fulfilled") setAlertas(resAlertas.value);
+
+    const fallos = [resRep, resVentas, resIng, resProv].filter((r) => r.status === "rejected");
+    setAviso(
+      fallos.length
+        ? { tipo: "warning", texto: `${fallos[0].reason?.mensaje ?? "Algunos datos no se pudieron cargar."}` }
+        : null
+    );
+    setCargando(false);
+  }, []);
 
   useEffect(() => {
     cargarDatos();
-  }, []);
+  }, [cargarDatos]);
 
-  const listaProductos = Array.isArray(productos) ? productos : [];
-  const listaVentas = Array.isArray(ventas) ? ventas : [];
-  const listaProveedores = Array.isArray(proveedores) ? proveedores : [];
+  const resumen = reporte?.resumen ?? {};
+  const inventario = useMemo(() => reporte?.inventario ?? [], [reporte]);
 
-  const resumen = reporte?.resumen || {};
-  const totalCostoInventario = resumen.costoTotalInventario || listaProductos.reduce((acc, p) => acc + ((p.costo_produccion || 0) * (p.stock || 0)), 0);
-  const totalVentaAcumulada = listaVentas.reduce((acc, v) => acc + (Number(v.total) || 0), 0);
-  const totalProductosConStock = resumen.productosConStock ?? listaProductos.filter((p) => (p.stock || 0) > 0).length;
-  const totalProductosAgotados = resumen.productosSinStock ?? listaProductos.filter((p) => (p.stock || 0) === 0).length;
+  // Ventas del mes actual (de las últimas 100 ventas que devuelve el backend)
+  const mesActual = ultimosMeses(1)[0];
+  const ventasDelMes = ventas.lista.filter((v) => mesKey(v.fecha) === mesActual);
+  const totalVentasMes = ventasDelMes.reduce((acc, v) => acc + Number(v.total || 0), 0);
 
-  // Gráfico: Productos con más stock / valor
-  const topProductsChart = listaProductos
-    .slice()
-    .sort((a, b) => (b.stock || 0) - (a.stock || 0))
-    .slice(0, 5)
-    .map((p) => ({
-      nombre: p.nombre_producto?.length > 18 ? p.nombre_producto.slice(0, 15) + "..." : p.nombre_producto,
-      stock: p.stock || 0,
-    }));
+  // Ventas vs compras (entradas de mercancía) por mes: datos reales
+  const serieMensual = useMemo(() => {
+    const meses = ultimosMeses(6);
+    const ventasPorMes = new Map(meses.map((m) => [m, 0]));
+    const comprasPorMes = new Map(meses.map((m) => [m, 0]));
+    ventas.lista.forEach((v) => {
+      const k = mesKey(v.fecha);
+      if (ventasPorMes.has(k)) ventasPorMes.set(k, ventasPorMes.get(k) + Number(v.total || 0));
+    });
+    ingresos.forEach((ing) => {
+      const k = mesKey(ing.fecha);
+      if (comprasPorMes.has(k)) comprasPorMes.set(k, comprasPorMes.get(k) + Number(ing.total || 0));
+    });
+    return meses.map((m) => ({ mes: mesCorto(m), ventas: ventasPorMes.get(m), compras: comprasPorMes.get(m) }));
+  }, [ventas.lista, ingresos]);
+  const haySerie = serieMensual.some((d) => d.ventas > 0 || d.compras > 0);
 
-  // Gráfico de Ventas vs Compras (Simulado dinámico basado en ventas reales o histórico)
-  const salesChartData = [
-    { mes: "May", ventas: Math.round(totalVentaAcumulada * 0.15), compras: Math.round(totalCostoInventario * 0.2) },
-    { mes: "Jun", ventas: Math.round(totalVentaAcumulada * 0.25), compras: Math.round(totalCostoInventario * 0.3) },
-    { mes: "Jul", ventas: Math.round(totalVentaAcumulada * 0.35), compras: Math.round(totalCostoInventario * 0.25) },
-    { mes: "Ago", ventas: Math.round(totalVentaAcumulada * 0.25) || totalVentaAcumulada, compras: Math.round(totalCostoInventario * 0.25) || totalCostoInventario },
+  // Productos por categoría (del reporte de inventario)
+  const categoriaData = useMemo(() => {
+    const conteo = new Map();
+    inventario.forEach((p) => {
+      const nombre = p.categoria?.nombre_categoria ?? "Sin categoría";
+      conteo.set(nombre, (conteo.get(nombre) ?? 0) + 1);
+    });
+    return [...conteo].map(([name, value]) => ({ name, value }));
+  }, [inventario]);
+
+  const topStock = useMemo(
+    () =>
+      inventario
+        .filter((p) => Number(p.stock) > 0)
+        .sort((a, b) => b.stock - a.stock)
+        .slice(0, 5)
+        .map((p) => ({
+          nombre: p.nombre_producto?.length > 20 ? `${p.nombre_producto.slice(0, 18)}…` : p.nombre_producto,
+          stock: p.stock,
+        })),
+    [inventario]
+  );
+
+  const listaAlertas = [
+    ...alertas.agotados.map((p) => ({ id: `ag-${p.id_producto}`, nombre: p.nombre_producto, detalle: "Agotado", tipo: "danger" })),
+    ...alertas.stockMinimo.map((p) => ({ id: `sm-${p.id_producto}`, nombre: p.nombre_producto, detalle: `Quedan ${p.stock} uds`, tipo: "warning" })),
+    ...alertas.proximosVencer.map((p) => ({ id: `pv-${p.id_producto}`, nombre: p.nombre_producto, detalle: `Vence ${fmtFecha(p.fecha_vencimiento)}`, tipo: "info" })),
   ];
 
-  // Gráfico Categorías
-  const categoriaData = [
-    { name: "Lácteos", value: 35 },
-    { name: "Cárnicos", value: 25 },
-    { name: "Abarrotes", value: 25 },
-    { name: "Bebidas", value: 15 },
-  ];
-
-  // Alertas unificadas
-  const alertasLista = [
-    ...(notificaciones.agotados || []).map((p) => ({
-      id: p.codigo_producto || p.id_producto,
-      nombre: p.nombre_producto,
-      cantidad: 0,
-      estado: "Agotado",
-    })),
-    ...(notificaciones.stockMinimo || []).map((p) => ({
-      id: p.codigo_producto || p.id_producto,
-      nombre: p.nombre_producto,
-      cantidad: p.stock,
-      estado: "Bajo Stock",
-    })),
-  ].slice(0, 4);
+  const sinDatos = (texto) => <div className="py-10 text-center text-xs text-muted-foreground">{texto}</div>;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Botón de refrescar */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">Resumen General</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Métricas del negocio conectadas en tiempo real al backend.
-          </p>
-        </div>
-        <button
-          onClick={cargarDatos}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <RefreshCw size={13} className={cargando ? "animate-spin" : ""} />
-          Actualizar Datos
+    <div className="space-y-5 p-4 sm:p-6">
+      <PageHeader title="Resumen general" description="Indicadores del negocio con datos en vivo del backend.">
+        <button onClick={cargarDatos} className="btn btn-outline btn-sm">
+          <RefreshCw size={14} className={cargando ? "animate-spin" : ""} />
+          Actualizar
         </button>
-      </div>
+      </PageHeader>
 
-      {/* KPIs Fila 1 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <Notice aviso={aviso} onClose={() => setAviso(null)} />
+
+      {/* Indicadores */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard
-          label="Inventario Total"
-          value={fmt(totalCostoInventario)}
-          sub={`${listaProductos.length} referencias`}
-          trend={{ val: "+", up: true }}
+          label="Inventario a costo"
+          value={fmtCOP(resumen.costoTotalInventario)}
+          sub={`${resumen.totalProductos ?? 0} referencias`}
           icon={Package}
-          color="bg-blue-50 text-blue-600"
+          color="bg-accent text-accent-foreground"
         />
         <KpiCard
-          label="Disponibles"
-          value={String(totalProductosConStock)}
-          sub="productos en stock"
-          trend={{ val: "OK", up: true }}
+          label="Con stock"
+          value={String(resumen.productosConStock ?? 0)}
+          sub="productos disponibles"
           icon={CheckCircle}
-          color="bg-emerald-50 text-emerald-600"
+          color="bg-primary-soft text-primary"
         />
         <KpiCard
           label="Agotados"
-          value={String(totalProductosAgotados)}
-          sub="sin stock"
-          trend={{ val: totalProductosAgotados > 0 ? "Alerta" : "0", up: totalProductosAgotados === 0 }}
+          value={String(resumen.productosSinStock ?? 0)}
+          sub={`${resumen.productosConStockBajo ?? 0} con stock bajo`}
           icon={XCircle}
-          color="bg-red-50 text-red-500"
+          color="bg-destructive-soft text-destructive"
         />
         <KpiCard
-          label="Ventas Registradas"
-          value={fmt(totalVentaAcumulada)}
-          sub={`${listaVentas.length} transacciones`}
-          trend={{ val: "+", up: true }}
+          label="Ventas del mes"
+          value={fmtCOP(totalVentasMes)}
+          sub={`${ventasDelMes.length} facturas · ${ventas.total} en total`}
           icon={TrendingUp}
-          color="bg-violet-50 text-violet-600"
+          color="bg-primary-soft text-primary"
         />
         <KpiCard
-          label="Valor de Venta"
-          value={fmt(resumen.valorPotencialVentas || totalCostoInventario * 1.3)}
-          sub="potencial estimado"
+          label="Valor de venta"
+          value={fmtCOP(resumen.valorPotencialVentas)}
+          sub="potencial del inventario"
           icon={Wallet}
-          color="bg-amber-50 text-amber-600"
+          color="bg-secondary text-secondary-foreground"
         />
         <KpiCard
           label="Proveedores"
-          value={String(listaProveedores.length)}
-          sub="activos en catálogo"
+          value={String(proveedores.length)}
+          sub="activos"
           icon={Truck}
-          color="bg-sky-50 text-sky-600"
+          color="bg-accent text-accent-foreground"
         />
       </div>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2 bg-card border border-border rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Ventas vs. Inversión en Inventario</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Comportamiento financiero</p>
-            </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="card p-5 xl:col-span-2">
+          <div className="mb-4">
+            <h3 className="text-sm font-extrabold text-foreground">Ventas vs. compras de mercancía</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Últimos 6 meses · ventas facturadas y entradas de inventario</p>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={salesChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="gVentas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gCompras" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
-              <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid rgba(0,0,0,0.08)", fontSize: 12 }} formatter={(v) => [fmt(v), ""]} />
-              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-              <Area type="monotone" dataKey="ventas" name="Ventas ($)" stroke="#2563EB" fill="url(#gVentas)" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="compras" name="Inversión ($)" stroke="#F59E0B" fill="url(#gCompras)" strokeWidth={2} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          {!haySerie ? (
+            sinDatos("Aún no hay ventas ni entradas registradas en los últimos 6 meses.")
+          ) : (
+            <ResponsiveContainer width="100%" height={230}>
+              <AreaChart data={serieMensual} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="gVentas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={VERDE} stopOpacity={0.28} />
+                    <stop offset="95%" stopColor={VERDE} stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gCompras" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={AZUL} stopOpacity={0.4} />
+                    <stop offset="95%" stopColor={AZUL} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E1EBE2" vertical={false} />
+                <XAxis dataKey="mes" tick={ejeTick} axisLine={false} tickLine={false} />
+                <YAxis tick={ejeTick} axisLine={false} tickLine={false} tickFormatter={(v) => `$${fmtCompacto(v)}`} width={56} />
+                <Tooltip contentStyle={estiloTooltip} formatter={(v) => fmtCOP(v)} />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <Area type="monotone" dataKey="ventas" name="Ventas" stroke={VERDE} fill="url(#gVentas)" strokeWidth={2.5} dot={false} />
+                <Area type="monotone" dataKey="compras" name="Compras" stroke="#4A9CC9" fill="url(#gCompras)" strokeWidth={2.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-          <div className="mb-5">
-            <h3 className="text-sm font-semibold text-foreground">Distribución por Categorías</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Porcentaje en catálogo</p>
+        <div className="card p-5">
+          <div className="mb-3">
+            <h3 className="text-sm font-extrabold text-foreground">Productos por categoría</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Referencias activas en el catálogo</p>
           </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={categoriaData} cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={3} dataKey="value">
-                {categoriaData.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+          {categoriaData.length === 0 ? (
+            sinDatos("No hay productos registrados.")
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={categoriaData} cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={3} dataKey="value" stroke="none">
+                    {categoriaData.map((d, i) => (
+                      <Cell key={d.name} fill={COLORES_PIE[i % COLORES_PIE.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={estiloTooltip} formatter={(v) => [`${v} productos`, ""]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 space-y-1.5">
+                {categoriaData.map((d, i) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs">
+                    <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: COLORES_PIE[i % COLORES_PIE.length] }} />
+                    <span className="flex-1 truncate text-muted-foreground">{d.name}</span>
+                    <span className="font-bold text-foreground">{d.value}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid rgba(0,0,0,0.08)", fontSize: 12 }} formatter={(v) => [`${v}%`, ""]} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-2 space-y-1.5">
-            {categoriaData.map((d, i) => (
-              <div key={d.name} className="flex items-center gap-2 text-xs">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CHART_COLORS[i] }} />
-                <span className="flex-1 text-muted-foreground">{d.name}</span>
-                <span className="font-medium text-foreground">{d.value}%</span>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Fila Productos con mayor Stock y Alertas */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2 bg-card border border-border rounded-xl p-5 shadow-sm">
-          <div className="mb-5">
-            <h3 className="text-sm font-semibold text-foreground">Productos con Mayor Existencia</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Unidades disponibles en bodega</p>
+      {/* Mayor existencia y alertas */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="card p-5 xl:col-span-2">
+          <div className="mb-4">
+            <h3 className="text-sm font-extrabold text-foreground">Productos con mayor existencia</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Unidades disponibles en bodega</p>
           </div>
-          {topProductsChart.length === 0 ? (
-            <div className="py-10 text-center text-xs text-muted-foreground">
-              No hay productos con existencias para graficar.
-            </div>
+          {topStock.length === 0 ? (
+            sinDatos("No hay productos con existencias para graficar.")
           ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={topProductsChart} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11, fill: "#6B7280" }} axisLine={false} tickLine={false} width={120} />
-                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid rgba(0,0,0,0.08)", fontSize: 12 }} />
-                <Bar dataKey="stock" name="Stock" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={12} />
+            <ResponsiveContainer width="100%" height={190}>
+              <BarChart data={topStock} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E1EBE2" horizontal={false} />
+                <XAxis type="number" tick={ejeTick} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="nombre" tick={ejeTick} axisLine={false} tickLine={false} width={130} />
+                <Tooltip contentStyle={estiloTooltip} cursor={{ fill: "#F3F8F3" }} />
+                <Bar dataKey="stock" name="Stock" fill={VERDE} radius={[0, 6, 6, 0]} barSize={14} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">Alertas de inventario</h3>
-            <Link to="/dashboard/productos" className="text-xs text-blue-600 hover:underline">Ver catálogo</Link>
+        <div className="card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-foreground">Alertas de inventario</h3>
+            <Link to="/dashboard/productos" className="text-xs font-bold text-primary hover:underline">Ver catálogo</Link>
           </div>
-          <div className="space-y-3">
-            {alertasLista.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">
-                No hay alertas activas de stock bajo o agotado.
-              </p>
+          <div className="max-h-56 space-y-2.5 overflow-y-auto">
+            {listaAlertas.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">No hay alertas activas de stock o vencimiento.</p>
             ) : (
-              alertasLista.map((p, idx) => (
-                <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${p.estado === "Agotado" ? "bg-red-100" : "bg-amber-100"}`}>
-                    <AlertTriangle size={13} className={p.estado === "Agotado" ? "text-red-500" : "text-amber-500"} />
+              listaAlertas.map((a) => (
+                <div key={a.id} className="flex items-start gap-3 rounded-xl bg-muted/70 p-3">
+                  <div
+                    className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${
+                      a.tipo === "danger" ? "bg-destructive-soft text-destructive" : a.tipo === "info" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {a.tipo === "info" ? <Clock size={13} /> : <AlertTriangle size={13} />}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{p.nombre}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.cantidad} uds · <StatusBadge status={p.estado} />
-                    </p>
+                    <p className="truncate text-xs font-bold text-foreground">{a.nombre}</p>
+                    <div className="mt-0.5">
+                      <Badge variant={a.tipo}>{a.detalle}</Badge>
+                    </div>
                   </div>
                 </div>
               ))
@@ -317,49 +312,41 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Tabla Últimas Ventas */}
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      {/* Últimas ventas */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Últimas transacciones</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Ventas emitidas en el sistema</p>
+            <h3 className="text-sm font-extrabold text-foreground">Últimas ventas</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Facturas emitidas recientemente</p>
           </div>
-          <Link to="/dashboard/ventas" className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">
+          <Link to="/dashboard/ventas" className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-hover">
             Ver todas <ArrowRight size={12} />
           </Link>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                {["Factura", "Cliente", "Fecha", "Total", "Estado"].map((h) => (
-                  <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3 whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
+          <table className="w-full text-left text-sm">
+            <thead className="table-head">
+              <tr>
+                <th className="px-5 py-3">Factura</th>
+                <th className="px-5 py-3">Fecha</th>
+                <th className="px-5 py-3 text-right">Subtotal</th>
+                <th className="px-5 py-3 text-right">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {listaVentas.length === 0 ? (
+              {ventas.lista.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">
-                    No hay ventas registradas aún. Visita la sección de Ventas para emitir una.
+                  <td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
+                    {cargando ? "Cargando..." : "No hay ventas registradas aún. Visita la sección Ventas para emitir una."}
                   </td>
                 </tr>
               ) : (
-                listaVentas.slice(0, 5).map((s) => (
-                  <tr key={s.idventa || s.id_venta || s.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-5 py-3 font-mono text-xs font-medium text-blue-600">{s.numero_venta || `V-${s.idventa || s.id_venta}`}</td>
-                    <td className="px-5 py-3 text-xs text-foreground font-medium">
-                      {s.cliente ? `${s.cliente.nombre_cliente} ${s.cliente.apellido_cliente || ""}` : "Cliente General"}
-                    </td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground">
-                      {s.fecha ? new Date(s.fecha).toLocaleDateString("es-CO") : "—"}
-                    </td>
-                    <td className="px-5 py-3 text-xs font-semibold text-foreground">{fmt(s.total)}</td>
-                    <td className="px-5 py-3">
-                      <StatusBadge status="Pagada" />
-                    </td>
+                ventas.lista.slice(0, 5).map((v) => (
+                  <tr key={v.id_venta} className="transition-colors hover:bg-muted/50">
+                    <td className="px-5 py-3 font-mono text-xs font-bold text-primary">{v.numero_venta}</td>
+                    <td className="px-5 py-3 text-xs text-muted-foreground">{fmtFecha(v.fecha)}</td>
+                    <td className="px-5 py-3 text-right text-xs text-muted-foreground">{fmtCOP(v.subtotal)}</td>
+                    <td className="px-5 py-3 text-right text-xs font-extrabold text-foreground">{fmtCOP(v.total)}</td>
                   </tr>
                 ))
               )}

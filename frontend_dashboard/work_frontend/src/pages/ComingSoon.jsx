@@ -1,16 +1,21 @@
-import { Construction } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Compass } from "lucide-react";
 
-export function ComingSoon({ label }) {
+// Pantalla para rutas del panel que no existen
+export function NotFound() {
   return (
     <div className="p-6">
-      <div className="bg-card border border-border rounded-xl p-12 flex flex-col items-center justify-center text-center gap-3">
-        <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-          <Construction size={22} />
+      <div className="card flex flex-col items-center justify-center gap-3 p-12 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
+          <Compass size={22} />
         </div>
-        <h2 className="text-base font-semibold text-foreground">{label}</h2>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          Este módulo todavía no está construido. Lo iremos armando paso a paso.
+        <h2 className="text-base font-extrabold text-foreground">Página no encontrada</h2>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Este módulo no existe o todavía no tiene un servicio disponible en el backend.
         </p>
+        <Link to="/dashboard" className="btn btn-primary btn-sm mt-1">
+          Volver al resumen
+        </Link>
       </div>
     </div>
   );

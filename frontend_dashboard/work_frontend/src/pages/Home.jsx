@@ -18,7 +18,7 @@ function Home() {
 
     return (
         <div className="home">
-            <section className="home__brand" aria-label="Herencia de Papá">
+            <section className="home__brand" aria-label="Herencia de Paapá">
                 <span className="home__blob home__blob--blue" aria-hidden="true" />
                 <span className="home__blob home__blob--green" aria-hidden="true" />
 

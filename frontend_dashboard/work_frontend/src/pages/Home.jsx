@@ -24,7 +24,7 @@ function Home() {
 
                 <div className="home__brand-inner">
                     <div className="home__wordmark">
-                        <h1>Herencia de paapá</h1>
+                        <h1>Herencia de papá</h1>
                     </div>
                     <p className="home__est">Est. 2010</p>
 

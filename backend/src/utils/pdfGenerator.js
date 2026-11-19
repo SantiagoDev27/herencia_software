@@ -339,35 +339,48 @@ class PdfGenerator {
     // DATOS DE LA VENTA
     // ==========================
     _dibujarDatosVenta(doc, venta) {
-    const startX = doc.page.margins.left;
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    let y = doc.y;
+        const startX = doc.page.margins.left;
+        const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const y = doc.y;
 
-    const boxHeight = 60;
-    doc.rect(startX, y, pageWidth, boxHeight).stroke("#cccccc");
+        // "2026-07-23" se interpreta como UTC y en Colombia saldría el día anterior: se arma en hora local
+        const [a, m, d] = String(venta.fecha ?? "").slice(0, 10).split("-").map(Number);
+        const fechaFormateada = a ? new Date(a, m - 1, d).toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" }) : "—";
 
-    const fechaFormateada = new Date(venta.fecha).toLocaleDateString("es-CO");
+        const c = venta.cliente;
+        const u = venta.usuario;
+        const nombre = (p, n, ap) => (p ? `${p[n] ?? ""} ${p[ap] ?? ""}`.trim() : "");
 
-    const nombreCliente = venta.cliente
-        ? `${venta.cliente.nombre_cliente} ${venta.cliente.apellido_cliente || ""}`.trim()
-        : "Cliente no registrado";
+        const columnaIzq = [
+            ["Cliente", nombre(c, "nombre_cliente", "apellido_cliente") || "Cliente no registrado"],
+            ["Identificación", c?.identificacion ?? "—"],
+            ["Teléfono", c?.telefono_cliente || "—"],
+            ["Dirección", [c?.direccion_cliente, c?.ciudad_cliente].filter(Boolean).join(", ") || "—"],
+        ];
+        const columnaDer = [
+            ["Fecha de venta", fechaFormateada],
+            ["Vendedor", nombre(u, "nombre_usuario", "apellido_usuario") || "Vendedor no registrado"],
+            ["Correo cliente", c?.correo_cliente || "—"],
+            ["Productos", `${venta.cantidad_items ?? "—"}`],
+        ];
 
-    const nombreVendedor = venta.usuario
-        ? `${venta.usuario.nombre_usuario} ${venta.usuario.apellido_usuario || ""}`.trim()
-        : "Vendedor no registrado";
+        const filaAlto = 17;
+        const boxHeight = columnaIzq.length * filaAlto + 16;
+        doc.rect(startX, y, pageWidth, boxHeight).stroke("#cccccc");
 
-    doc.fontSize(10).font("Helvetica-Bold").fillColor("#7a1f3d");
-    doc.text("Cliente:", startX + 10, y + 10);
-    doc.text("Vendedor:", startX + 10, y + 28);
-    doc.text("Fecha de venta:", startX + 10, y + 46);
+        const mitad = pageWidth / 2;
+        const dibujarColumna = (filas, x) => {
+            filas.forEach(([etiqueta, valor], i) => {
+                const fy = y + 10 + i * filaAlto;
+                doc.fontSize(9).font("Helvetica-Bold").fillColor("#7a1f3d").text(`${etiqueta}:`, x, fy, { width: 85 });
+                doc.font("Helvetica").fillColor("#333333").text(String(valor), x + 88, fy, { width: mitad - 100, ellipsis: true, lineBreak: false });
+            });
+        };
+        dibujarColumna(columnaIzq, startX + 10);
+        dibujarColumna(columnaDer, startX + mitad + 5);
 
-    doc.font("Helvetica").fillColor("#333333");
-    doc.text(nombreCliente, startX + 100, y + 10);
-    doc.text(nombreVendedor, startX + 100, y + 28);
-    doc.text(fechaFormateada, startX + 100, y + 46);
-
-    doc.fillColor("#000000");
-    doc.y = y + boxHeight + 20;
+        doc.fillColor("#000000");
+        doc.y = y + boxHeight + 20;
     }
 
     // ==========================

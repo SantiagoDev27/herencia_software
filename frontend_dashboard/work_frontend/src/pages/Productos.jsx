@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Search, RefreshCw, Trash2, Pencil, Info } from "lucide-react";
+import { Plus, Search, RefreshCw, Trash2, Pencil, Info, Truck } from "lucide-react";
 import productoService from "../service/productoService";
+import proveedorService from "../service/proveedorService";
+import { ProveedoresDeProductoModal } from "../components/ProveedoresDeProductoModal";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Modal, ConfirmDialog } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
@@ -53,6 +55,10 @@ export default function Productos() {
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState("");
 
+  // Proveedores vinculados (tabla proveedor-producto)
+  const [relaciones, setRelaciones] = useState([]);
+  const [productoProveedores, setProductoProveedores] = useState(null);
+
   const [porEliminar, setPorEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
 
@@ -87,6 +93,29 @@ export default function Productos() {
   useEffect(() => {
     cargarProductos();
   }, [cargarProductos]);
+
+  // Si esto falla, el catálogo sigue funcionando y la columna de proveedores muestra "—"
+  const cargarRelaciones = useCallback(async () => {
+    try {
+      setRelaciones(toList(await proveedorService.listarRelaciones()));
+    } catch {
+      setRelaciones([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarRelaciones();
+  }, [cargarRelaciones]);
+
+  const proveedoresPorProducto = useMemo(() => {
+    const mapa = new Map();
+    relaciones.forEach((r) => {
+      const lista = mapa.get(r.fk_producto_proveedor_id_producto) ?? [];
+      lista.push(r);
+      mapa.set(r.fk_producto_proveedor_id_producto, lista);
+    });
+    return mapa;
+  }, [relaciones]);
 
   const categorias = useMemo(() => {
     const mapa = new Map(CATEGORIAS_BASE.map((c) => [c.id, c.nombre]));
@@ -251,19 +280,20 @@ export default function Productos() {
                 <th className="px-5 py-3 text-center">Stock</th>
                 <th className="px-5 py-3 text-center">Estado</th>
                 <th className="px-5 py-3">Vencimiento</th>
+                <th className="px-5 py-3">Proveedores</th>
                 <th className="px-5 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {cargando ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-xs text-muted-foreground">
+                  <td colSpan={10} className="py-10 text-center text-xs text-muted-foreground">
                     Cargando catálogo de productos...
                   </td>
                 </tr>
               ) : productosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-xs text-muted-foreground">
+                  <td colSpan={10} className="py-10 text-center text-xs text-muted-foreground">
                     No se encontraron productos con los criterios seleccionados.
                   </td>
                 </tr>
@@ -299,8 +329,35 @@ export default function Productos() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
+                      <td className="px-5 py-3.5 text-xs">
+                        {(() => {
+                          const provs = proveedoresPorProducto.get(p.id_producto) ?? [];
+                          if (provs.length === 0) {
+                            return (
+                              <button onClick={() => setProductoProveedores(p)} className="text-[11px] font-semibold text-muted-foreground hover:text-primary">
+                                Sin proveedor · vincular
+                              </button>
+                            );
+                          }
+                          return (
+                            <button onClick={() => setProductoProveedores(p)} className="flex max-w-[180px] flex-wrap gap-1 text-left" title="Ver proveedores">
+                              {provs.slice(0, 2).map((r) => (
+                                <span key={r.id_proveedor_producto} className="truncate rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">
+                                  {r.proveedor?.razon_social ?? "Inactivo"}
+                                </span>
+                              ))}
+                              {provs.length > 2 && (
+                                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">+{provs.length - 2}</span>
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => setProductoProveedores(p)} className="btn-icon hover:text-primary" title="Proveedores" aria-label={`Proveedores de ${p.nombre_producto}`}>
+                            <Truck size={15} />
+                          </button>
                           <button onClick={() => abrirModalEditar(p)} className="btn-icon hover:text-primary" title="Editar" aria-label={`Editar ${p.nombre_producto}`}>
                             <Pencil size={15} />
                           </button>
@@ -393,6 +450,12 @@ export default function Productos() {
           </div>
         </form>
       </Modal>
+
+      <ProveedoresDeProductoModal
+        producto={productoProveedores}
+        onClose={() => setProductoProveedores(null)}
+        onCambio={cargarRelaciones}
+      />
 
       <ConfirmDialog
         open={!!porEliminar}

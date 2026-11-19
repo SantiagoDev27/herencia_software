@@ -18,6 +18,17 @@ class ProductoProveedorRepository {
         });
     }
 
+    // Todas las relaciones, con el nombre del proveedor y del producto
+    // (permite mostrar en las listas qué proveedores tiene cada producto y viceversa)
+    async obtenerTodas() {
+        return await ProductoProveedor.findAll({
+            include: [
+                { model: Proveedor, as: "proveedor", attributes: ["id_proveedor", "razon_social", "nit"] },
+                { model: Producto, as: "producto", attributes: ["id_producto", "codigo_producto", "nombre_producto"] }
+            ]
+        });
+    }
+
     // Todos los productos que ofrece un proveedor específico
     async obtenerPorProveedor(fk_producto_proveedor_id_proveedor) {
         return await ProductoProveedor.findAll({

@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowDownLeft, ArrowUpRight, Plus, RefreshCw, ChevronDown, ChevronRight, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Plus, ChevronDown, ChevronRight, X } from "lucide-react";
 import movimientoService from "../service/movimientoService";
 import productoService from "../service/productoService";
 import proveedorService from "../service/proveedorService";
+import ventaService from "../service/ventaService";
+import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Modal } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
 import { fmtCOP, fmtFecha, toList, codigoAuto } from "../lib/format";
+
+// Cada cuánto se consultan de nuevo entradas, salidas y ventas sin que el usuario refresque
+const INTERVALO_ACTUALIZACION_MS = 10000;
 
 const MOTIVOS_SALIDA = ["Merma / daño", "Producto vencido", "Ajuste de inventario", "Consumo interno"];
 
@@ -27,11 +32,16 @@ const Chevron = ({ abierto }) => (abierto ? <ChevronDown size={15} /> : <Chevron
 
 export default function Movimientos() {
   const [searchParams, setSearchParams] = useSearchParams();
+  // Finanzas solo consulta; Administrador y Empleado registran entradas y salidas
+  const { puede } = useAuth();
+  const puedeRegistrar = puede("registrarMovimiento");
   const tabActiva = searchParams.get("tab") === "salidas" ? "salidas" : "ingresos";
   const cambiarTab = (tab) => setSearchParams(tab === "salidas" ? { tab } : {}, { replace: true });
 
   const [ingresos, setIngresos] = useState([]);
   const [salidas, setSalidas] = useState([]);
+  const [ventas, setVentas] = useState([]);
+  const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
   const [productos, setProductos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -53,27 +63,83 @@ export default function Movimientos() {
   const mapaProductos = useMemo(() => new Map(productos.map((p) => [p.id_producto, p])), [productos]);
   const nombreProducto = (id) => mapaProductos.get(id)?.nombre_producto ?? `Producto #${id}`;
 
-  const cargarDatos = useCallback(async () => {
-    setCargando(true);
-    const [resIng, resSal, resProd, resProv] = await Promise.allSettled([
+  // silencioso = true en las actualizaciones automáticas: no muestra "Cargando..." ni borra
+  // lo que ya está en pantalla si una petición falla momentáneamente.
+  const cargarDatos = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
+    const [resIng, resSal, resVen, resProd, resProv] = await Promise.allSettled([
       movimientoService.listarIngresos(),
       movimientoService.listarSalidas(),
+      ventaService.listarVentas({ pagina: 1, limite: 100 }),
       productoService.obtenerTodos(),
       proveedorService.obtenerTodos(),
     ]);
-    setIngresos(resIng.status === "fulfilled" ? toList(resIng.value) : []);
-    setSalidas(resSal.status === "fulfilled" ? toList(resSal.value) : []);
-    setProductos(resProd.status === "fulfilled" ? toList(resProd.value) : []);
-    setProveedores(resProv.status === "fulfilled" ? toList(resProv.value) : []);
+    const aplicar = (res, setter, clave) => {
+      if (res.status === "fulfilled") setter(toList(res.value, clave));
+      else if (!silencioso) setter([]);
+    };
+    aplicar(resIng, setIngresos);
+    aplicar(resSal, setSalidas);
+    aplicar(resVen, setVentas, "ventas");
+    aplicar(resProd, setProductos);
+    aplicar(resProv, setProveedores);
 
     const fallo = [resIng, resSal].find((r) => r.status === "rejected");
-    if (fallo) setAviso({ tipo: "error", texto: fallo.reason?.mensaje ?? "No se pudieron cargar los movimientos." });
-    setCargando(false);
+    if (fallo && !silencioso) setAviso({ tipo: "error", texto: fallo.reason?.mensaje ?? "No se pudieron cargar los movimientos." });
+    if (!fallo) setUltimaActualizacion(new Date());
+    if (!silencioso) setCargando(false);
   }, []);
 
+  // Carga inicial + actualización automática (solo con la pestaña del navegador visible)
   useEffect(() => {
     cargarDatos();
+    const actualizar = () => {
+      if (document.visibilityState === "visible") cargarDatos(true);
+    };
+    const timer = setInterval(actualizar, INTERVALO_ACTUALIZACION_MS);
+    window.addEventListener("focus", actualizar);
+    document.addEventListener("visibilitychange", actualizar);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", actualizar);
+      document.removeEventListener("visibilitychange", actualizar);
+    };
   }, [cargarDatos]);
+
+  // Salidas manuales (merma, ajuste...) + ventas, unificadas y ordenadas de la más reciente a la más antigua
+  const movimientosSalida = useMemo(() => {
+    const bajas = salidas.map((sal) => ({
+      clave: `sal-${sal.id_salida}`,
+      tipo: "baja",
+      codigo: sal.codigo_salida,
+      fecha: sal.fecha,
+      motivo: sal.observacion || "—",
+      total: sal.total,
+      detalles: (sal.detalles ?? []).map((d) => ({
+        id: d.id_det_salida,
+        id_producto: d.fk_det_salida_id_producto,
+        cantidad: d.cantidad,
+        unitario: d.precio_unitario,
+        total: d.total,
+      })),
+    }));
+    const vendidas = ventas.map((v) => ({
+      clave: `ven-${v.id_venta}`,
+      tipo: "venta",
+      codigo: v.numero_venta,
+      fecha: v.fecha,
+      motivo: "Venta",
+      total: v.total,
+      detalles: (v.detalles_venta ?? []).map((d) => ({
+        id: d.id_detalleventa,
+        id_producto: d.fk_det_venta_id_producto,
+        cantidad: d.cantidad,
+        unitario: d.precio_venta,
+        total: d.total,
+      })),
+    }));
+    return [...bajas, ...vendidas].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  }, [salidas, ventas]);
 
   const alternarFila = (clave) =>
     setExpandidos((prev) => {
@@ -259,17 +325,27 @@ export default function Movimientos() {
         title="Entradas y salidas de inventario"
         description="Entradas de mercancía (compras con lote y vencimiento) y salidas por merma o ajuste."
       >
-        <button onClick={cargarDatos} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
-          <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
-        </button>
-        <button onClick={abrirIngreso} className="btn btn-primary">
-          <ArrowDownLeft size={16} />
-          Registrar entrada
-        </button>
-        <button onClick={abrirSalida} className="btn btn-secondary">
-          <ArrowUpRight size={16} />
-          Registrar salida
-        </button>
+        <span
+          className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+          title="La lista se actualiza sola cada pocos segundos"
+        >
+          <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+          {ultimaActualizacion
+            ? `Actualizado ${ultimaActualizacion.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+            : "Actualización automática"}
+        </span>
+        {puedeRegistrar && (
+          <>
+            <button onClick={abrirIngreso} className="btn btn-primary">
+              <ArrowDownLeft size={16} />
+              Registrar entrada
+            </button>
+            <button onClick={abrirSalida} className="btn btn-secondary">
+              <ArrowUpRight size={16} />
+              Registrar salida
+            </button>
+          </>
+        )}
       </PageHeader>
 
       <Notice aviso={aviso} onClose={() => setAviso(null)} />
@@ -278,7 +354,7 @@ export default function Movimientos() {
       <div className="flex items-center gap-1 border-b border-border" role="tablist">
         {[
           { id: "ingresos", label: "Entradas de mercancía", total: ingresos.length, Icono: ArrowDownLeft },
-          { id: "salidas", label: "Salidas y bajas", total: salidas.length, Icono: ArrowUpRight },
+          { id: "salidas", label: "Salidas y ventas", total: movimientosSalida.length, Icono: ArrowUpRight },
         ].map(({ id, label, total, Icono }) => (
           <button
             key={id}
@@ -378,28 +454,34 @@ export default function Movimientos() {
                   <th className="w-10 px-3 py-3" />
                   <th className="px-3 py-3">Código</th>
                   <th className="px-5 py-3">Fecha</th>
-                  <th className="px-5 py-3">Motivo</th>
+                  <th className="px-5 py-3">Tipo / motivo</th>
                   <th className="px-5 py-3 text-center">Productos</th>
-                  <th className="px-5 py-3 text-right">Costo total</th>
+                  <th className="px-5 py-3 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {cargando ? (
                   <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">Cargando salidas...</td></tr>
-                ) : salidas.length === 0 ? (
-                  <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No hay salidas de mercancía registradas todavía.</td></tr>
+                ) : movimientosSalida.length === 0 ? (
+                  <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No hay salidas ni ventas registradas todavía.</td></tr>
                 ) : (
-                  salidas.map((sal) => {
-                    const clave = `sal-${sal.id_salida}`;
+                  movimientosSalida.map((sal) => {
+                    const clave = sal.clave;
                     const abierto = expandidos.has(clave);
                     return (
                       <Fragment key={clave}>
                         <tr className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => alternarFila(clave)}>
                           <td className="px-3 py-3.5 text-muted-foreground"><Chevron abierto={abierto} /></td>
-                          <td className="px-3 py-3.5 font-mono text-xs font-bold text-accent-foreground">{sal.codigo_salida}</td>
+                          <td className="px-3 py-3.5 font-mono text-xs font-bold text-accent-foreground">{sal.codigo}</td>
                           <td className="px-5 py-3.5 text-xs text-muted-foreground">{fmtFecha(sal.fecha, true)}</td>
-                          <td className="max-w-xs truncate px-5 py-3.5 text-xs text-foreground">{sal.observacion || "—"}</td>
-                          <td className="px-5 py-3.5 text-center text-xs">{sal.detalles?.length ?? 0}</td>
+                          <td className="max-w-xs truncate px-5 py-3.5 text-xs text-foreground">
+                            {sal.tipo === "venta" ? (
+                              <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-secondary-foreground">Venta</span>
+                            ) : (
+                              sal.motivo
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-center text-xs">{sal.detalles.length}</td>
                           <td className="px-5 py-3.5 text-right text-xs font-extrabold text-foreground">{fmtCOP(sal.total)}</td>
                         </tr>
                         {abierto && (
@@ -411,16 +493,16 @@ export default function Movimientos() {
                                   <tr>
                                     <th className="py-1 text-left">Producto</th>
                                     <th className="py-1 text-center">Cant.</th>
-                                    <th className="py-1 text-right">Costo unit.</th>
+                                    <th className="py-1 text-right">{sal.tipo === "venta" ? "Precio unit." : "Costo unit."}</th>
                                     <th className="py-1 text-right">Total</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                  {sal.detalles?.map((d) => (
-                                    <tr key={d.id_det_salida}>
-                                      <td className="py-1.5 font-semibold text-foreground">{nombreProducto(d.fk_det_salida_id_producto)}</td>
+                                  {sal.detalles.map((d) => (
+                                    <tr key={d.id}>
+                                      <td className="py-1.5 font-semibold text-foreground">{nombreProducto(d.id_producto)}</td>
                                       <td className="py-1.5 text-center">{d.cantidad}</td>
-                                      <td className="py-1.5 text-right text-muted-foreground">{fmtCOP(d.precio_unitario)}</td>
+                                      <td className="py-1.5 text-right text-muted-foreground">{fmtCOP(d.unitario)}</td>
                                       <td className="py-1.5 text-right font-bold">{fmtCOP(d.total)}</td>
                                     </tr>
                                   ))}

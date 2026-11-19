@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
+import { RoleRoute } from "./routes/RoleRoute";
 import { DashboardLayout } from "./layouts/DashboardLayout";
 import { Dashboard } from "./pages/Dashboard";
 import Productos from "./pages/Productos";
@@ -19,11 +20,22 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<Dashboard />} />
-          <Route path="productos" element={<Productos />} />
-          <Route path="movimientos" element={<Movimientos />} />
-          <Route path="ventas" element={<Ventas />} />
-          <Route path="proveedores" element={<Proveedores />} />
-          <Route path="reportes" element={<Reportes />} />
+          {/* Cada módulo valida el rol (Administrador / Empleado / Finanzas) */}
+          <Route element={<RoleRoute permiso="productos" />}>
+            <Route path="productos" element={<Productos />} />
+          </Route>
+          <Route element={<RoleRoute permiso="movimientos" />}>
+            <Route path="movimientos" element={<Movimientos />} />
+          </Route>
+          <Route element={<RoleRoute permiso="ventas" />}>
+            <Route path="ventas" element={<Ventas />} />
+          </Route>
+          <Route element={<RoleRoute permiso="proveedores" />}>
+            <Route path="proveedores" element={<Proveedores />} />
+          </Route>
+          <Route element={<RoleRoute permiso="reportes" />}>
+            <Route path="reportes" element={<Reportes />} />
+          </Route>
 
           {/* Rutas anteriores que ahora se resuelven en las pantallas actuales */}
           <Route path="inventario" element={<Navigate to="/dashboard/productos" replace />} />

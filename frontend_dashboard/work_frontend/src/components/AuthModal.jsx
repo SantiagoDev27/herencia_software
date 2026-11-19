@@ -5,12 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { Notice } from "./ui/Notice";
 import "./AuthModal.css";
 
-// Roles sembrados por el backend (src/scrips/seedUsuario.js). No hay endpoint para listarlos.
-const ROLES = [
-  { id: 2, nombre: "Vendedor" },
-  { id: 1, nombre: "Administrador" },
-  { id: 3, nombre: "Cliente" },
-];
+import { ROLES_REGISTRO as ROLES } from "../config/roles";
 
 const FORM_REGISTRO = {
   nombre: "",
@@ -26,6 +21,7 @@ export default function AuthModal() {
   const [modo, setModo] = useState("login"); // "login" | "registro"
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
+  const [exito, setExito] = useState(null);
   const [verClave, setVerClave] = useState(false);
 
   const [loginForm, setLoginForm] = useState({ correo: "", contraseña: "" });
@@ -37,11 +33,13 @@ export default function AuthModal() {
   const cambiarModo = (nuevo) => {
     setModo(nuevo);
     setError(null);
+    setExito(null);
   };
 
   const enviarLogin = async (e) => {
     e.preventDefault();
     setError(null);
+    setExito(null);
     setCargando(true);
     try {
       await login(loginForm.correo.trim(), loginForm.contraseña);
@@ -67,7 +65,11 @@ export default function AuthModal() {
       };
       if (registro.telefono.trim()) datos.telefono_usuario = registro.telefono.trim();
       await registrar(datos);
-      navigate("/dashboard");
+      // Cuenta creada: se lleva al usuario a iniciar sesión con su correo ya escrito
+      setLoginForm({ correo: datos.correo_usuario, contraseña: "" });
+      setRegistro(FORM_REGISTRO);
+      setModo("login");
+      setExito("Cuenta creada correctamente. Ahora inicia sesión con tu correo y contraseña.");
     } catch (err) {
       setError(err.mensaje || "No se pudo crear la cuenta.");
     } finally {
@@ -121,6 +123,12 @@ export default function AuthModal() {
       {error && (
         <div className="mb-4">
           <Notice aviso={{ tipo: "error", texto: error }} />
+        </div>
+      )}
+
+      {exito && (
+        <div className="mb-4">
+          <Notice aviso={{ tipo: "success", texto: exito }} onClose={() => setExito(null)} />
         </div>
       )}
 

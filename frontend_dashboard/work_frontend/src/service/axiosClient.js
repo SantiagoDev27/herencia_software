@@ -35,7 +35,17 @@ const construirMensaje = (error) => {
 
 axiosClient.interceptors.response.use(
     (response) => response.data,
-    (error) => {
+    async (error) => {
+        // En descargas (responseType "blob") el mensaje de error del backend llega como Blob
+        const data = error.response?.data;
+        if (typeof Blob !== "undefined" && data instanceof Blob) {
+            try {
+                error.response.data = JSON.parse(await data.text());
+            } catch {
+                /* no era JSON: se usa el mensaje genérico */
+            }
+        }
+
         const status = error.response?.status;
         const esLogin = error.config?.url?.includes("/auth/login");
 

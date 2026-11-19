@@ -9,11 +9,12 @@ const seed = async () => {
     await sequelize.authenticate();
     console.log('✅ Conexión a la base de datos exitosa.');
 
-    // 1. Asegurar roles básicos
+    // 1. Asegurar los tres roles del sistema (si ya existían con otro nombre, se renombran)
+    //    1 Administrador: todo · 2 Empleado: ventas e inventario · 3 Finanzas: contabilidad
     const rolesData = [
-      { idrol: 1, nombre_rol: 'Administrador', descripcion: 'Rol con todos los privilegios' },
-      { idrol: 2, nombre_rol: 'Vendedor', descripcion: 'Rol para ventas y atención al cliente' },
-      { idrol: 3, nombre_rol: 'Cliente', descripcion: 'Rol para clientes del sistema' },
+      { idrol: 1, nombre_rol: 'Administrador', descripcion: 'Acceso total al sistema' },
+      { idrol: 2, nombre_rol: 'Empleado', descripcion: 'Ventas, inventario y proveedores' },
+      { idrol: 3, nombre_rol: 'Finanzas', descripcion: 'Contabilidad: ventas, movimientos y reportes' },
     ];
 
     for (const r of rolesData) {
@@ -21,6 +22,10 @@ const seed = async () => {
       if (!existente) {
         await Rol.create(r);
         console.log(`✨ Rol creado: ${r.nombre_rol}`);
+      } else if (existente.nombre_rol !== r.nombre_rol || existente.descripcion !== r.descripcion) {
+        const anterior = existente.nombre_rol;
+        await existente.update({ nombre_rol: r.nombre_rol, descripcion: r.descripcion });
+        console.log(`🔁 Rol ${r.idrol} actualizado: ${anterior} → ${r.nombre_rol}`);
       }
     }
 
@@ -39,26 +44,28 @@ const seed = async () => {
       console.log('✨ Categorías por defecto creadas.');
     }
 
-    // 3. Crear usuario Administrador inicial
-    const adminEmail = 'admin@herenciadepapa.com';
-    const adminPass = 'admin1234';
-    const usuarioExistente = await Usuario.findOne({ where: { correo_usuario: adminEmail } });
+    // 3. Un usuario inicial por cada rol (solo se crean si el correo no existe)
+    const usuariosIniciales = [
+      { nombre: 'Administrador', apellido: 'Sistema', correo: 'admin@herenciadepapa.com', clave: 'admin1234', telefono: '3001234567', rol: 1 },
+      { nombre: 'Empleado', apellido: 'Tienda', correo: 'empleado@herenciadepapa.com', clave: 'empleado1234', telefono: '3001234568', rol: 2 },
+      { nombre: 'Finanzas', apellido: 'Contabilidad', correo: 'finanzas@herenciadepapa.com', clave: 'finanzas1234', telefono: '3001234569', rol: 3 },
+    ];
 
-    if (!usuarioExistente) {
-      const hash = await bcrypt.hash(adminPass, 10);
+    for (const u of usuariosIniciales) {
+      const existe = await Usuario.findOne({ where: { correo_usuario: u.correo } });
+      if (existe) {
+        console.log(`ℹ️ El usuario ${u.correo} ya existe.`);
+        continue;
+      }
       await Usuario.create({
-        nombre_usuario: 'Administrador',
-        apellido_usuario: 'Sistema',
-        correo_usuario: adminEmail,
-        contraseña_usuario: hash,
-        telefono_usuario: '3001234567',
-        fk_usuario_id_rol: 1
+        nombre_usuario: u.nombre,
+        apellido_usuario: u.apellido,
+        correo_usuario: u.correo,
+        contraseña_usuario: await bcrypt.hash(u.clave, 10),
+        telefono_usuario: u.telefono,
+        fk_usuario_id_rol: u.rol
       });
-      console.log(`\n🎉 Usuario Administrador creado con éxito:`);
-      console.log(`   📧 Correo: ${adminEmail}`);
-      console.log(`   🔑 Contraseña: ${adminPass}`);
-    } else {
-      console.log(`\nℹ️ El usuario administrador (${adminEmail}) ya existe.`);
+      console.log(`🎉 Usuario creado: ${u.correo} / ${u.clave}`);
     }
 
   } catch (error) {

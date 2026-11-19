@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import authService from "../service/authService";
+import { rolDe, puede as puedeRol } from "../config/roles";
 
 const AuthContext = createContext(null);
 
@@ -32,7 +33,8 @@ export function AuthProvider({ children }) {
     const login = async (correo_usuario, contraseña_usuario) =>
         guardarSesion(await authService.login({ correo_usuario, contraseña_usuario }));
 
-    const registrar = async (datosUsuario) => guardarSesion(await authService.registrar(datosUsuario));
+    // Crear la cuenta NO inicia sesión: el usuario debe entrar luego con su correo y contraseña
+    const registrar = async (datosUsuario) => authService.registrar(datosUsuario);
 
     const logout = () => {
         localStorage.removeItem("token");
@@ -41,7 +43,17 @@ export function AuthProvider({ children }) {
     };
 
     return (
-        <AuthContext.Provider value={{ usuario, login, registrar, logout, cargando }}>
+        <AuthContext.Provider
+            value={{
+                usuario,
+                login,
+                registrar,
+                logout,
+                cargando,
+                rol: rolDe(usuario),
+                puede: (permiso) => puedeRol(usuario, permiso),
+            }}
+        >
             {children}
         </AuthContext.Provider>
     );

@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import Proveedor from "../models/ProovedorModel.js";
 
 class ProveedorRepository {
@@ -14,8 +15,13 @@ class ProveedorRepository {
         return await Proveedor.findByPk(id_proveedor);
     }
 
+    // Busca por el número base del NIT, con o sin dígito de verificación:
+    // "900123456" y "900123456-8" se consideran el mismo proveedor.
     async obtenerPorNit(nit) {
-        return await Proveedor.findOne({ where: { nit } });
+        const base = String(nit).split("-")[0];
+        return await Proveedor.findOne({
+            where: { [Op.or]: [{ nit: base }, { nit: { [Op.like]: `${base}-%` } }] }
+        });
     }
 
     async actualizar(id_proveedor, datosActualizados) {

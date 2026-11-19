@@ -1,4 +1,5 @@
 import sequelize from "../configuration/database.js";
+import AppError from "../utils/AppError.js";
 import VentaRepository from "../repositories/VentaRepositories.js";
 import DetVentaRepository from "../repositories/DetVentaRepository.js";
 import DetVentaLoteRepository from "../repositories/DetVentaLoteRepository.js";
@@ -155,14 +156,14 @@ class VentaService {
 
     async obtenerVentaConDetalles(id_venta) {
         const venta = await VentaRepository.obtenerporid(id_venta);
-        if (!venta) throw new Error("Venta no encontrada");
+        if (!venta) throw new AppError("Venta no encontrada", 404);
         const detalles = await DetVentaRepository.obtenerporventa(id_venta);
         return { venta, detalles };
     }
 
     async obtenerPorCodigo(numero_venta) {
         const venta = await VentaRepository.obtenerporcodigo(numero_venta);
-        if (!venta) throw new Error("Venta no encontrada");
+        if (!venta) throw new AppError("Venta no encontrada", 404);
         return venta;
     }
 

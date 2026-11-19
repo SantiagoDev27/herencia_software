@@ -93,7 +93,8 @@ export const descargarBlob = (blob, nombreArchivo) => {
   document.body.appendChild(enlace);
   enlace.click();
   enlace.remove();
-  window.URL.revokeObjectURL(url);
+  // Si se libera de inmediato, algunos navegadores cancelan la descarga
+  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 };
 
 // Valores grandes para ejes de gráficos: 1.200.000 -> "$1,2 M"

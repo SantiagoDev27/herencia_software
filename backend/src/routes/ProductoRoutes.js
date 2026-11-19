@@ -1,10 +1,14 @@
 import { Router } from 'express';
+import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
+import { OPERACION } from '../configuration/roles.js';
 import { createProductValidation, updateProductValidation, deleteProductValidation, obtenerProductosProximosAVencer } from '../validations/ProductoValidations.js';
 import { validarCampos } from '../middleware/validarCampos.middleware.js';
-import { verificarToken } from '../middleware/authMiddleware.js';
 import productoController from '../controllers/ProductoController.js';
 
 const router = Router();
+
+// Toda ruta exige sesión iniciada; por defecto la consulta queda abierta a los tres roles
+router.use(verificarToken);
 
 // ============================================
 // HU-INV-006: Consultar existencias
@@ -39,27 +43,27 @@ router.get(
 // HU-INV-01: Registrar producto
 router.post(
   '/',
-  verificarToken,
   createProductValidation,
   validarCampos,
+  permitirRoles(...OPERACION),
   productoController.registrarProducto
 );
 
 // HU-INV-02: Actualizar producto
 router.put(
   '/:id',
-  verificarToken,
   updateProductValidation,
   validarCampos,
+  permitirRoles(...OPERACION),
   productoController.actualizarProducto
 );
 
 // HU-INV-03: Eliminar producto
 router.delete(
   '/:id',
-  verificarToken,
   deleteProductValidation,
   validarCampos,
+  permitirRoles(...OPERACION),
   productoController.eliminarProducto
 );
 

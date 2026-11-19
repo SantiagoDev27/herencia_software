@@ -20,6 +20,11 @@ const proveedorService = {
     axiosClient.get(`${BASE}/proveedores/${idProveedor}/productos`),
   obtenerProveedoresDeProducto: (idProducto) =>
     axiosClient.get(`${BASE}/productos/${idProducto}/proveedores`),
+  // Mismo vínculo creado desde el producto. body: { fk_producto_proveedor_id_proveedor, precio_compra }
+  asociarProveedorAProducto: (idProducto, datos) =>
+    axiosClient.post(`${BASE}/productos/${idProducto}/proveedores`, datos),
+  // Todas las relaciones con nombre de proveedor y de producto
+  listarRelaciones: () => axiosClient.get(`${BASE}/proveedor-producto`),
   actualizarPrecioCompra: (idAsociacion, datos) =>
     axiosClient.patch(`${BASE}/proveedor-producto/${idAsociacion}`, datos),
   eliminarAsociacion: (idAsociacion) =>

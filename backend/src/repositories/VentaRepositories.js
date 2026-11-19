@@ -1,4 +1,5 @@
 import Venta from "../models/VentaModel.js";
+import DetVenta from "../models/DetVentaModel.js";
 import Cliente from "../models/clienteModel.js";
 import Usuario from "../models/UsuariosModels.js";
 
@@ -73,6 +74,13 @@ class VentaRepository {
             where,
             limit,
             offset,
+            // Se incluyen los productos vendidos para mostrar cada venta como salida de inventario
+            include: [{
+                model: DetVenta,
+                as: "detalles_venta",
+                attributes: ["id_detalleventa", "fk_det_venta_id_producto", "cantidad", "precio_venta", "total"]
+            }],
+            distinct: true, // el conteo sigue siendo de ventas, no de filas de detalle
             order: [["id_venta", "DESC"]]
         });
     }

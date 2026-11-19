@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import AppError from '../utils/AppError.js';
+import { ROLES, rolNormalizado } from '../configuration/roles.js';
 
 // Middleware para verificar el token de jsonwebtoken
 export const verificarToken = (req, res, next) => {
@@ -26,14 +27,13 @@ export const verificarToken = (req, res, next) => {
   }
 };
 
-// Middleware para autorizar roles específicos aun no se usara, sera para despues
-//sera como Admin,Encargado,Vendedor
+// Solo el Administrador (antes comparaba con "Admin", que no existe en la tabla de roles)
 export const esAdmin = (req, res, next) => {
   if (!req.usuario) {
     return next(new AppError('No autenticado.', 401));
   }
 
-  if (req.usuario.rol !== 'Admin') {
+  if (rolNormalizado(req.usuario) !== ROLES.ADMINISTRADOR) {
     return next(new AppError('No tienes permisos para realizar esta acción.', 403));
   }
 
@@ -47,7 +47,7 @@ export const permitirRoles = (...rolesPermitidos) => {
     }
 
     // Verificar si el rol del usuario está dentro de los permitidos
-    if (!rolesPermitidos.includes(req.usuario.rol)) {
+    if (!rolesPermitidos.includes(rolNormalizado(req.usuario))) {
       return next(new AppError('No tienes permisos para realizar esta acción.', 403));
     }
 

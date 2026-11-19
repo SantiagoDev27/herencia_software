@@ -14,7 +14,9 @@ const nombreDe = (persona, prefijo) =>
   persona ? `${persona[`nombre_${prefijo}`] ?? ""} ${persona[`apellido_${prefijo}`] ?? ""}`.trim() : "";
 
 export default function Ventas() {
-  const { usuario } = useAuth();
+  const { usuario, puede } = useAuth();
+  // Finanzas consulta ventas y descarga facturas; solo Administrador y Empleado registran ventas
+  const puedeVender = puede("registrarVenta");
   const [ventas, setVentas] = useState([]);
   const [paginacion, setPaginacion] = useState({ total: 0, paginaActual: 1, totalPaginas: 1 });
   const [pagina, setPagina] = useState(1);
@@ -184,10 +186,12 @@ export default function Ventas() {
         <button onClick={cargarVentas} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
           <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
         </button>
-        <button onClick={abrirNuevaVenta} className="btn btn-primary">
-          <Plus size={16} />
-          Nueva venta
-        </button>
+        {puedeVender && (
+          <button onClick={abrirNuevaVenta} className="btn btn-primary">
+            <Plus size={16} />
+            Nueva venta
+          </button>
+        )}
       </PageHeader>
 
       <Notice aviso={aviso} onClose={() => setAviso(null)} />
@@ -424,44 +428,82 @@ export default function Ventas() {
       >
         {detalle?.venta && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            {/* Datos de la venta */}
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
               <div className="rounded-xl bg-muted/60 p-3">
                 <p className="text-[11px] font-bold uppercase text-muted-foreground">Cliente</p>
                 <p className="mt-0.5 font-semibold text-foreground">
                   {nombreDe(detalle.venta.cliente, "cliente") || "Sin cliente registrado"}
                 </p>
+                {detalle.venta.cliente && (
+                  <dl className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+                    <div><dt className="inline font-semibold">Identificación: </dt><dd className="inline">{detalle.venta.cliente.identificacion ?? "—"}</dd></div>
+                    <div><dt className="inline font-semibold">Teléfono: </dt><dd className="inline">{detalle.venta.cliente.telefono_cliente || "—"}</dd></div>
+                    {detalle.venta.cliente.correo_cliente && (
+                      <div><dt className="inline font-semibold">Correo: </dt><dd className="inline">{detalle.venta.cliente.correo_cliente}</dd></div>
+                    )}
+                    <div>
+                      <dt className="inline font-semibold">Dirección: </dt>
+                      <dd className="inline">
+                        {[detalle.venta.cliente.direccion_cliente, detalle.venta.cliente.ciudad_cliente].filter(Boolean).join(", ") || "—"}
+                      </dd>
+                    </div>
+                  </dl>
+                )}
               </div>
               <div className="rounded-xl bg-muted/60 p-3">
-                <p className="text-[11px] font-bold uppercase text-muted-foreground">Atendió</p>
-                <p className="mt-0.5 font-semibold text-foreground">
-                  {nombreDe(detalle.venta.usuario, "usuario") || "—"}
-                </p>
+                <p className="text-[11px] font-bold uppercase text-muted-foreground">Venta</p>
+                <dl className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                  <div><dt className="inline font-semibold">Factura: </dt><dd className="inline font-mono font-bold text-primary">{detalle.venta.numero_venta}</dd></div>
+                  <div><dt className="inline font-semibold">Fecha: </dt><dd className="inline">{fmtFecha(detalle.venta.fecha)}</dd></div>
+                  <div><dt className="inline font-semibold">Atendió: </dt><dd className="inline">{nombreDe(detalle.venta.usuario, "usuario") || "—"}</dd></div>
+                  <div>
+                    <dt className="inline font-semibold">Productos: </dt>
+                    <dd className="inline">
+                      {detalle.detalles?.length ?? 0} referencia(s) · {(detalle.detalles ?? []).reduce((acc, d) => acc + Number(d.cantidad || 0), 0)} unidad(es)
+                    </dd>
+                  </div>
+                </dl>
               </div>
             </div>
 
+            {/* Productos facturados */}
             <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-left text-xs">
                 <thead className="table-head">
                   <tr>
                     <th className="px-3 py-2">Producto</th>
                     <th className="px-3 py-2 text-center">Cant.</th>
-                    <th className="px-3 py-2 text-right">Precio</th>
-                    <th className="px-3 py-2 text-center">IVA</th>
+                    <th className="px-3 py-2 text-right">Precio unit.</th>
+                    <th className="px-3 py-2 text-right">Subtotal</th>
+                    <th className="px-3 py-2 text-right">IVA</th>
                     <th className="px-3 py-2 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {detalle.detalles?.map((d) => (
-                    <tr key={d.id_detalleventa}>
-                      <td className="px-3 py-2 font-semibold text-foreground">
-                        {d.producto?.nombre_producto ?? `Producto #${d.fk_det_venta_id_producto}`}
-                      </td>
-                      <td className="px-3 py-2 text-center">{d.cantidad}</td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">{fmtCOP(d.precio_venta)}</td>
-                      <td className="px-3 py-2 text-center text-muted-foreground">{Number(d.iva_producto)}%</td>
-                      <td className="px-3 py-2 text-right font-bold">{fmtCOP(d.total)}</td>
-                    </tr>
-                  ))}
+                  {detalle.detalles?.map((d) => {
+                    const valorIva = Number(d.total) - Number(d.subtotal);
+                    return (
+                      <tr key={d.id_detalleventa}>
+                        <td className="px-3 py-2">
+                          <p className="font-semibold text-foreground">
+                            {d.producto?.nombre_producto ?? `Producto #${d.fk_det_venta_id_producto}`}
+                          </p>
+                          {d.producto?.codigo_producto && (
+                            <p className="font-mono text-[10px] text-muted-foreground">{d.producto.codigo_producto}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">{d.cantidad}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{fmtCOP(d.precio_venta)}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{fmtCOP(d.subtotal)}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">
+                          {fmtCOP(valorIva)}
+                          <span className="block text-[10px]">{Number(d.iva_producto) || 0}%</span>
+                        </td>
+                        <td className="px-3 py-2 text-right font-bold">{fmtCOP(d.total)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

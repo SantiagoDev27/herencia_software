@@ -5,7 +5,14 @@ import { useAuth } from "../../context/AuthContext";
 import notificacionService from "../../service/notificacionService";
 import { fmtFecha } from "../../lib/format";
 
-const VACIO = { stockMinimo: [], proximosVencer: [], agotados: [] };
+const VACIO = {
+  stockMinimo: [],
+  proximosVencer: [],
+  agotados: [],
+  resumenVencer: { total_productos: 0, total_lotes: 0, total_unidades_inventario: 0, total_unidades_por_vencer: 0 },
+};
+
+const textoDias = (dias) => (dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`);
 
 export function Topbar({ title, subtitle, onMenuClick }) {
   const [busqueda, setBusqueda] = useState("");
@@ -13,7 +20,7 @@ export function Topbar({ title, subtitle, onMenuClick }) {
   const [notificaciones, setNotificaciones] = useState(VACIO);
   const [cargandoNotif, setCargandoNotif] = useState(false);
   const alertasRef = useRef(null);
-  const { usuario } = useAuth();
+  const { usuario, puede, rol } = useAuth();
   const navigate = useNavigate();
 
   const iniciales = usuario
@@ -66,6 +73,7 @@ export function Topbar({ title, subtitle, onMenuClick }) {
         {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
       </div>
 
+      {puede("productos") && (
       <form onSubmit={buscar} className="hidden w-60 items-center gap-2 rounded-xl bg-muted px-3 py-2 md:flex">
         <Search size={14} className="flex-shrink-0 text-muted-foreground" />
         <input
@@ -76,6 +84,7 @@ export function Topbar({ title, subtitle, onMenuClick }) {
           className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
       </form>
+      )}
 
       {/* Alertas de inventario */}
       <div className="relative" ref={alertasRef}>
@@ -130,12 +139,51 @@ export function Topbar({ title, subtitle, onMenuClick }) {
                       </div>
                     </div>
                   ))}
+                  {notificaciones.proximosVencer.length > 0 && (
+                    <div className="mt-1 rounded-xl border border-border bg-muted/60 p-2.5 text-xs">
+                      <p className="font-bold text-foreground">Lotes próximos a vencer (30 días)</p>
+                      <div className="mt-1.5 grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-[10px] uppercase text-muted-foreground">Total en inventario</p>
+                          <p className="font-extrabold text-foreground">
+                            {notificaciones.resumenVencer.total_unidades_inventario} uds
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {notificaciones.resumenVencer.total_productos} producto(s)
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase text-muted-foreground">Próximas a vencer</p>
+                          <p className="font-extrabold text-accent-foreground">
+                            {notificaciones.resumenVencer.total_unidades_por_vencer} uds
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            en {notificaciones.resumenVencer.total_lotes} lote(s)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {notificaciones.proximosVencer.map((item) => (
                     <div key={`pv-${item.id_producto}`} className="flex items-start gap-2.5 rounded-xl bg-accent p-2.5">
                       <Clock size={15} className="mt-0.5 flex-shrink-0 text-accent-foreground" />
-                      <div className="min-w-0 text-xs">
+                      <div className="min-w-0 flex-1 text-xs">
                         <p className="truncate font-bold text-accent-foreground">{item.nombre_producto}</p>
-                        <p className="text-[11px] text-muted-foreground">Vence: {fmtFecha(item.fecha_vencimiento)}</p>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+                          <span className="text-muted-foreground">
+                            Total: <b className="text-foreground">{item.stock} uds</b>
+                          </span>
+                          <span className="text-muted-foreground">
+                            Por vencer: <b className="text-accent-foreground">{item.cantidad_por_vencer} uds</b>
+                          </span>
+                        </div>
+                        <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                          {item.lotes?.map((l) => (
+                            <li key={l.id_lote}>
+                              Lote {l.numero_lote}: {l.cantidad} uds · {fmtFecha(l.fecha_vencimiento)} ({textoDias(l.dias_restantes)})
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                   ))}
@@ -152,7 +200,7 @@ export function Topbar({ title, subtitle, onMenuClick }) {
         </div>
         <div className="hidden md:block">
           <p className="text-xs font-bold leading-none">{usuario?.nombre_usuario ?? "Usuario"}</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">{usuario?.rol?.nombre_rol ?? "—"}</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">{rol ?? usuario?.rol?.nombre_rol ?? "—"}</p>
         </div>
       </div>
     </header>

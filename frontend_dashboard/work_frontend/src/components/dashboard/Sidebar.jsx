@@ -4,7 +4,12 @@ import { navSections } from "../../config/navSections";
 import { useAuth } from "../../context/AuthContext";
 
 export function Sidebar({ collapsed, onCollapse, mobileOpen, onCloseMobile }) {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, puede, rol } = useAuth();
+
+  // Solo se muestran los módulos del rol; las secciones sin módulos visibles se ocultan
+  const secciones = navSections
+    .map((s) => ({ ...s, items: s.items.filter((item) => puede(item.permiso)) }))
+    .filter((s) => s.items.length > 0);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -59,7 +64,7 @@ export function Sidebar({ collapsed, onCollapse, mobileOpen, onCloseMobile }) {
 
         {/* Navegación */}
         <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-4">
-          {navSections.map((section) => (
+          {secciones.map((section) => (
             <div key={section.label}>
               <p
                 className={`mb-1 px-2 text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/55 ${ocultarEtiqueta}`}
@@ -104,7 +109,7 @@ export function Sidebar({ collapsed, onCollapse, mobileOpen, onCloseMobile }) {
               <p className="truncate text-xs font-bold text-white">
                 {usuario ? `${usuario.nombre_usuario} ${usuario.apellido_usuario}` : "Usuario"}
               </p>
-              <p className="truncate text-[10px] text-sidebar-foreground/70">{usuario?.rol?.nombre_rol ?? "—"}</p>
+              <p className="truncate text-[10px] text-sidebar-foreground/70">{rol ?? usuario?.rol?.nombre_rol ?? "—"}</p>
             </div>
           </div>
           <button

@@ -11,6 +11,71 @@ import { fmtCOP, toList } from "../lib/format";
 
 const FORM_VACIO = { nit: "", razon_social: "", telefono_proveedor: "", direccion: "", ciudad: "Cali" };
 
+// ---- Validación de datos del proveedor (mismas reglas que el backend) ----
+const LETRAS = "A-Za-zÁÉÍÓÚÜÑáéíóúüñ";
+
+// Dígito de verificación del NIT según el algoritmo de la DIAN
+const calcularDV = (numero) => {
+  const pesos = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
+  const suma = String(numero).split("").reverse().reduce((acc, d, i) => acc + Number(d) * pesos[i], 0);
+  const residuo = suma % 11;
+  return residuo > 1 ? 11 - residuo : residuo;
+};
+
+const limpiarNit = (nit) => nit.replace(/[.\s]/g, "");
+
+const VALIDADORES = {
+  nit: (v) => {
+    const nit = limpiarNit(v);
+    if (!nit) return "El NIT es obligatorio.";
+    if (!/^\d{6,10}(-\d)?$/.test(nit)) return "Entre 6 y 10 dígitos; el dígito de verificación va con guion (ej. 900123456-8).";
+    const [numero, dv] = nit.split("-");
+    if (dv !== undefined && Number(dv) !== calcularDV(numero)) {
+      return `El dígito de verificación no corresponde: para ${numero} debería ser ${calcularDV(numero)}.`;
+    }
+    return "";
+  },
+  razon_social: (v) => {
+    const t = v.trim();
+    if (!t) return "La razón social es obligatoria.";
+    if (t.length < 3 || t.length > 100) return "Debe tener entre 3 y 100 caracteres.";
+    if (!new RegExp(`[${LETRAS}]`).test(t)) return "Debe contener letras.";
+    if (!new RegExp(`^[${LETRAS}0-9\\s.,&'()\\-]+$`).test(t)) return "Tiene caracteres no permitidos.";
+    return "";
+  },
+  telefono_proveedor: (v) => {
+    const t = v.trim();
+    if (!t) return "El teléfono es obligatorio.";
+    if (!/^\+?[0-9\s\-()]+$/.test(t)) return "Solo números, espacios, +, - y paréntesis.";
+    const digitos = t.replace(/\D/g, "").replace(/^57(?=\d{10}$)/, "");
+    const valido = /^3\d{9}$/.test(digitos) || /^60\d{8}$/.test(digitos) || /^\d{7}$/.test(digitos);
+    return valido ? "" : "Celular de 10 dígitos (empieza por 3) o fijo de 7 dígitos o de 10 (empieza por 60).";
+  },
+  direccion: (v) => {
+    const t = v.trim();
+    if (!t) return "La dirección es obligatoria.";
+    if (t.length < 5 || t.length > 45) return "Debe tener entre 5 y 45 caracteres.";
+    if (!new RegExp(`^[${LETRAS}0-9\\s#\\-.,°º/]+$`).test(t)) return "Tiene caracteres no permitidos.";
+    return "";
+  },
+  ciudad: (v) => {
+    const t = v.trim();
+    if (!t) return "";
+    if (t.length < 3 || t.length > 45) return "Debe tener entre 3 y 45 caracteres.";
+    if (!new RegExp(`^[${LETRAS}\\s.\\-]+$`).test(t)) return "Solo letras y espacios.";
+    return "";
+  },
+};
+
+const validarProveedor = (form) =>
+  Object.fromEntries(
+    Object.entries(VALIDADORES)
+      .map(([campo, validar]) => [campo, validar(form[campo] ?? "")])
+      .filter(([, msg]) => msg)
+  );
+
+const ErrorCampo = ({ mensaje }) => (mensaje ? <p className="mt-1 text-[11px] font-semibold text-destructive">{mensaje}</p> : null);
+
 export default function Proveedores() {
   const [proveedores, setProveedores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -22,6 +87,7 @@ export default function Proveedores() {
   const [form, setForm] = useState(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState("");
+  const [erroresCampos, setErroresCampos] = useState({});
 
   const [porEliminar, setPorEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
@@ -33,6 +99,21 @@ export default function Proveedores() {
   const [formAsociacion, setFormAsociacion] = useState({ id_producto: "", precio_compra: "" });
   const [errorCatalogo, setErrorCatalogo] = useState("");
   const [editandoPrecio, setEditandoPrecio] = useState(null); // { id, valor }
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
+  const [conteoProductos, setConteoProductos] = useState(new Map()); // id_proveedor -> productos vinculados
+
+  // Cuántos productos surte cada proveedor (para mostrarlo en su tarjeta)
+  const cargarConteo = useCallback(async () => {
+    try {
+      const mapa = new Map();
+      toList(await proveedorService.listarRelaciones()).forEach((r) => {
+        mapa.set(r.fk_producto_proveedor_id_proveedor, (mapa.get(r.fk_producto_proveedor_id_proveedor) ?? 0) + 1);
+      });
+      setConteoProductos(mapa);
+    } catch {
+      setConteoProductos(new Map());
+    }
+  }, []);
 
   const cargarProveedores = useCallback(async () => {
     setCargando(true);
@@ -48,11 +129,13 @@ export default function Proveedores() {
 
   useEffect(() => {
     cargarProveedores();
-  }, [cargarProveedores]);
+    cargarConteo();
+  }, [cargarProveedores, cargarConteo]);
 
   const abrirModalNuevo = () => {
     setProveedorEditando(null);
     setErrorModal("");
+    setErroresCampos({});
     setForm(FORM_VACIO);
     setModalAbierto(true);
   };
@@ -60,6 +143,7 @@ export default function Proveedores() {
   const abrirModalEditar = (prov) => {
     setProveedorEditando(prov);
     setErrorModal("");
+    setErroresCampos({});
     setForm({
       nit: String(prov.nit ?? ""),
       razon_social: prov.razon_social ?? "",
@@ -73,11 +157,19 @@ export default function Proveedores() {
   const guardarProveedor = async (e) => {
     e.preventDefault();
     setErrorModal("");
+
+    const errores = validarProveedor(form);
+    setErroresCampos(errores);
+    if (Object.keys(errores).length) {
+      setErrorModal("Revisa los campos marcados antes de guardar.");
+      return;
+    }
+
     setGuardando(true);
     try {
-      // El NIT se envía siempre como texto (el backend valida el formato 900123456-7)
+      // El NIT se envía sin puntos ni espacios (el backend valida formato y dígito de verificación)
       const payload = {
-        nit: form.nit.trim(),
+        nit: limpiarNit(form.nit),
         razon_social: form.razon_social.trim(),
         telefono_proveedor: form.telefono_proveedor.trim(),
         direccion: form.direccion.trim(),
@@ -94,6 +186,8 @@ export default function Proveedores() {
       setModalAbierto(false);
       cargarProveedores();
     } catch (err) {
+      // Si el backend rechaza campos puntuales, se marcan debajo de cada uno
+      if (err.detalles && typeof err.detalles === "object") setErroresCampos(err.detalles);
       setErrorModal(err.mensaje || "Error al guardar el proveedor.");
     } finally {
       setGuardando(false);
@@ -117,6 +211,7 @@ export default function Proveedores() {
   // ---- Catálogo del proveedor -------------------------------------------------
   const recargarAsociaciones = async (idProveedor) => {
     setAsociaciones(toList(await proveedorService.obtenerProductosDeProveedor(idProveedor)));
+    cargarConteo();
   };
 
   const abrirCatalogo = async (prov) => {
@@ -125,15 +220,17 @@ export default function Proveedores() {
     setEditandoPrecio(null);
     setAsociaciones([]);
     setFormAsociacion({ id_producto: "", precio_compra: "" });
-    try {
-      const [, resProductos] = await Promise.all([
-        recargarAsociaciones(prov.id_proveedor),
-        productoService.obtenerTodos(),
-      ]);
-      setTodosProductos(toList(resProductos));
-    } catch (err) {
-      setErrorCatalogo(err.mensaje);
-    }
+    setTodosProductos([]);
+    setCargandoCatalogo(true);
+    // Por separado: si falla una consulta, la otra igual se muestra
+    const [resRel, resProd] = await Promise.allSettled([
+      recargarAsociaciones(prov.id_proveedor),
+      productoService.obtenerTodos(),
+    ]);
+    if (resProd.status === "fulfilled") setTodosProductos(toList(resProd.value));
+    const fallo = [resRel, resProd].find((r) => r.status === "rejected");
+    if (fallo) setErrorCatalogo(fallo.reason?.mensaje ?? "No se pudo cargar el catálogo del proveedor.");
+    setCargandoCatalogo(false);
   };
 
   // Solo se pueden vincular productos que el proveedor todavía no ofrece
@@ -190,7 +287,15 @@ export default function Proveedores() {
     );
   });
 
-  const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value });
+  const set = (campo) => (e) => {
+    const valor = e.target.value;
+    setForm({ ...form, [campo]: valor });
+    // si el campo ya estaba marcado, se re-valida mientras el usuario corrige
+    if (erroresCampos[campo]) setErroresCampos((prev) => ({ ...prev, [campo]: VALIDADORES[campo](valor) }));
+  };
+  const validarAlSalir = (campo) => () =>
+    setErroresCampos((prev) => ({ ...prev, [campo]: VALIDADORES[campo](form[campo] ?? "") }));
+  const claseInput = (campo) => `input ${erroresCampos[campo] ? "border-destructive focus:ring-destructive/30" : ""}`;
 
   return (
     <div className="space-y-5 p-4 sm:p-6">
@@ -265,9 +370,14 @@ export default function Proveedores() {
               </div>
 
               <div className="mt-5 border-t border-border pt-3">
-                <button onClick={() => abrirCatalogo(p)} className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-hover">
-                  <Package size={13} />
-                  Catálogo de productos
+                <button onClick={() => abrirCatalogo(p)} className="flex w-full items-center justify-between gap-1.5 text-xs font-bold text-primary hover:text-primary-hover">
+                  <span className="flex items-center gap-1.5">
+                    <Package size={13} />
+                    Catálogo de productos
+                  </span>
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
+                    {conteoProductos.get(p.id_proveedor) ?? 0} producto(s)
+                  </span>
                 </button>
               </div>
             </div>
@@ -283,7 +393,7 @@ export default function Proveedores() {
         subtitle="Ingresa los datos comerciales del proveedor."
         maxWidth="max-w-md"
       >
-        <form onSubmit={guardarProveedor} className="space-y-3.5">
+        <form onSubmit={guardarProveedor} noValidate className="space-y-3.5">
           <Notice aviso={errorModal ? { tipo: "error", texto: errorModal } : null} />
 
           <div>
@@ -292,35 +402,44 @@ export default function Proveedores() {
               id="pv-nit"
               required
               maxLength={20}
-              pattern="\d{5,10}-?\d?"
-              title="Formato válido: 900123456 o 900123456-7"
-              placeholder="900123456-7"
-              className="input"
+              inputMode="numeric"
+              placeholder="900123456-8"
+              className={claseInput("nit")}
+              aria-invalid={!!erroresCampos.nit}
               value={form.nit}
               onChange={set("nit")}
+              onBlur={validarAlSalir("nit")}
             />
-            <p className="hint">Entre 5 y 10 dígitos, con dígito de verificación opcional.</p>
+            {erroresCampos.nit ? (
+              <ErrorCampo mensaje={erroresCampos.nit} />
+            ) : (
+              <p className="hint">Entre 6 y 10 dígitos; si incluyes el dígito de verificación, se comprueba.</p>
+            )}
           </div>
 
           <div>
             <label className="label" htmlFor="pv-razon">Razón social *</label>
-            <input id="pv-razon" required maxLength={100} placeholder="Distribuidora del Valle S.A.S." className="input" value={form.razon_social} onChange={set("razon_social")} />
+            <input id="pv-razon" required maxLength={100} placeholder="Distribuidora del Valle S.A.S." className={claseInput("razon_social")} aria-invalid={!!erroresCampos.razon_social} value={form.razon_social} onChange={set("razon_social")} onBlur={validarAlSalir("razon_social")} />
+            <ErrorCampo mensaje={erroresCampos.razon_social} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label" htmlFor="pv-tel">Teléfono *</label>
-              <input id="pv-tel" type="tel" required maxLength={45} pattern="[0-9+\-\s()]+" title="Solo números, espacios, +, - y paréntesis" placeholder="3101234567" className="input" value={form.telefono_proveedor} onChange={set("telefono_proveedor")} />
+              <input id="pv-tel" type="tel" required maxLength={45} placeholder="3101234567" className={claseInput("telefono_proveedor")} aria-invalid={!!erroresCampos.telefono_proveedor} value={form.telefono_proveedor} onChange={set("telefono_proveedor")} onBlur={validarAlSalir("telefono_proveedor")} />
+              <ErrorCampo mensaje={erroresCampos.telefono_proveedor} />
             </div>
             <div>
               <label className="label" htmlFor="pv-ciudad">Ciudad</label>
-              <input id="pv-ciudad" maxLength={45} placeholder="Cali" className="input" value={form.ciudad} onChange={set("ciudad")} />
+              <input id="pv-ciudad" maxLength={45} placeholder="Cali" className={claseInput("ciudad")} aria-invalid={!!erroresCampos.ciudad} value={form.ciudad} onChange={set("ciudad")} onBlur={validarAlSalir("ciudad")} />
+              <ErrorCampo mensaje={erroresCampos.ciudad} />
             </div>
           </div>
 
           <div>
             <label className="label" htmlFor="pv-dir">Dirección *</label>
-            <input id="pv-dir" required maxLength={45} placeholder="Calle 10 # 5-20" className="input" value={form.direccion} onChange={set("direccion")} />
+            <input id="pv-dir" required maxLength={45} placeholder="Calle 10 # 5-20" className={claseInput("direccion")} aria-invalid={!!erroresCampos.direccion} value={form.direccion} onChange={set("direccion")} onBlur={validarAlSalir("direccion")} />
+            <ErrorCampo mensaje={erroresCampos.direccion} />
           </div>
 
           <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
@@ -346,7 +465,9 @@ export default function Proveedores() {
 
           <form onSubmit={agregarAsociacion} className="space-y-2 rounded-xl border border-border bg-muted/60 p-3">
             <p className="text-xs font-bold text-foreground">Vincular producto</p>
-            {disponibles.length === 0 ? (
+            {cargandoCatalogo ? (
+              <p className="text-xs text-muted-foreground">Cargando productos...</p>
+            ) : disponibles.length === 0 ? (
               <p className="text-xs text-muted-foreground">
                 {todosProductos.length === 0
                   ? "Aún no hay productos en el catálogo. Regístralos primero en Productos."

@@ -116,17 +116,6 @@ function Register() {
                             onChange={(e) => setTelefono(e.target.value)}
                         />
 
-                        <select
-                            className="login-panel__select"
-                            value={rol}
-                            onChange={(e) => setRol(e.target.value)}
-                            required
-                        >
-                            <option value="3">Cliente</option>
-                            <option value="2">Vendedor</option>
-                            <option value="1">Administrador</option>
-                        </select>
-
                         {error && <p className="login-panel__error">{error}</p>}
 
                         <button

@@ -12,6 +12,7 @@ import { KpiCard } from "../components/dashboard/KpiCard";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Notice } from "../components/ui/Notice";
 import { Badge } from "../components/ui/Badge";
+import { useAuth } from "../context/AuthContext";
 import reporteService from "../service/reporteService";
 import ventaService from "../service/ventaService";
 import movimientoService from "../service/movimientoService";
@@ -38,6 +39,7 @@ const ultimosMeses = (cantidad = 6) => {
 };
 
 export function Dashboard() {
+  const { puede } = useAuth();
   const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState(null);
   const [reporte, setReporte] = useState(null);
@@ -130,7 +132,7 @@ export function Dashboard() {
   const listaAlertas = [
     ...alertas.agotados.map((p) => ({ id: `ag-${p.id_producto}`, nombre: p.nombre_producto, detalle: "Agotado", tipo: "danger" })),
     ...alertas.stockMinimo.map((p) => ({ id: `sm-${p.id_producto}`, nombre: p.nombre_producto, detalle: `Quedan ${p.stock} uds`, tipo: "warning" })),
-    ...alertas.proximosVencer.map((p) => ({ id: `pv-${p.id_producto}`, nombre: p.nombre_producto, detalle: `Vence ${fmtFecha(p.fecha_vencimiento)}`, tipo: "info" })),
+    ...alertas.proximosVencer.map((p) => ({ id: `pv-${p.id_producto}`, nombre: p.nombre_producto, detalle: `${p.cantidad_por_vencer} de ${p.stock} uds por vencer`, tipo: "info" })),
   ];
 
   const sinDatos = (texto) => <div className="py-10 text-center text-xs text-muted-foreground">{texto}</div>;
@@ -284,7 +286,9 @@ export function Dashboard() {
         <div className="card p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-extrabold text-foreground">Alertas de inventario</h3>
-            <Link to="/dashboard/productos" className="text-xs font-bold text-primary hover:underline">Ver catálogo</Link>
+            {puede("productos") && (
+              <Link to="/dashboard/productos" className="text-xs font-bold text-primary hover:underline">Ver catálogo</Link>
+            )}
           </div>
           <div className="max-h-56 space-y-2.5 overflow-y-auto">
             {listaAlertas.length === 0 ? (

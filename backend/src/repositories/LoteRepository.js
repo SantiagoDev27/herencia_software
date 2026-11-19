@@ -1,5 +1,12 @@
 import { Op } from "sequelize";
 import Lote from "../models/loteModel.js";
+import Producto from "../models/ProductModels.js";
+
+// Fecha local (YYYY-MM-DD). toISOString() usa UTC y en Colombia (UTC-5) adelanta el día después de las 7 p. m.
+const fechaLocalISO = (fecha = new Date()) => {
+    const d = new Date(fecha.getTime() - fecha.getTimezoneOffset() * 60000);
+    return d.toISOString().split("T")[0];
+};
 
 class LoteRepository {
 
@@ -118,6 +125,26 @@ class LoteRepository {
                 },
                 cantidad_actual: { [Op.gt]: 0 }
             },
+            order: [["fecha_vencimiento", "ASC"]]
+        });
+    }
+
+    // Lotes con existencias que vencen entre hoy y "dias" días, con los datos de su producto
+    // (alimenta los recordatorios: total del producto vs. cantidad próxima a vencer)
+    async obtenerLotesProximosAVencerConProducto(dias = 30) {
+        const limite = new Date();
+        limite.setDate(limite.getDate() + dias);
+
+        return await Lote.findAll({
+            where: {
+                fecha_vencimiento: { [Op.between]: [fechaLocalISO(), fechaLocalISO(limite)] },
+                cantidad_actual: { [Op.gt]: 0 }
+            },
+            include: [{
+                model: Producto,
+                as: "producto",
+                attributes: ["id_producto", "codigo_producto", "nombre_producto", "stock"]
+            }],
             order: [["fecha_vencimiento", "ASC"]]
         });
     }

@@ -1,0 +1,163 @@
+@startuml clases_dominio
+!include _estilo.iuml
+title Diagrama de clases — Modelo de dominio (ERP Herencia de Papá v1.1)
+hide empty members
+left to right direction
+
+package "Seguridad" {
+  class Rol {
+    +idrol : int
+    +nombre_rol : String
+    +descripcion : String
+  }
+  class Usuario {
+    +idusuario : int
+    +nombre_usuario : String
+    +apellido_usuario : String
+    +correo_usuario : String
+    -contraseña_usuario : String <<bcrypt>>
+    +telefono_usuario : String
+    +estado_usuario : boolean
+    +intentos_fallidos : int
+    +bloqueado_hasta : DateTime
+    +ultimo_acceso : DateTime
+    --
+    +estaBloqueado() : boolean
+    +estaActivo() : boolean
+  }
+  class Auditoria {
+    +id_auditoria : int
+    +fecha : DateTime
+    +correo : String
+    +accion : String
+    +detalle : String
+    +ip : String
+  }
+}
+
+package "Inventario" {
+  class Categoria {
+    +id_categoria : int
+    +nombre_categoria : String
+    +descripcion : String
+  }
+  class Producto {
+    +id_producto : int
+    +codigo_producto : String
+    +nombre_producto : String
+    +stock : int
+    +costo_produccion : decimal
+    +precio_venta : decimal
+    +iva : decimal
+    +fecha_vencimiento : Date <<null si stock = 0>>
+    +deleted_at : DateTime <<retirado>>
+    --
+    +estaAgotado() : boolean
+  }
+  class Lote {
+    +id_lote : int
+    +numero_lote : String
+    +cantidad_inicial : int
+    +cantidad_actual : int
+    +fecha_produccion : Date
+    +fecha_vencimiento : Date
+  }
+  class IngresoMercancia {
+    +id_entrada : int
+    +codigo_entrada : String
+    +fecha : Date
+    +subtotal : decimal
+    +iva : decimal
+    +total : decimal
+    +observacion : String
+  }
+  class DetIngreso {
+    +id_det_entrada : int
+    +cantidad : int
+    +precio_unitario : decimal
+    +subtotal : decimal
+    +iva : decimal
+    +total : decimal
+  }
+  class SalidaMercancia {
+    +id_salida : int
+    +codigo_salida : String
+    +fecha : Date
+    +total : decimal
+    +observacion : String
+  }
+  class DetSalida {
+    +id_det_salida : int
+    +cantidad : int
+    +precio_unitario : decimal
+    +total : decimal
+  }
+}
+
+package "Proveedores" {
+  class Proveedor {
+    +id_proveedor : int
+    +nit : int
+    +razon_social : String
+    +telefono : String
+    +direccion : String
+    +ciudad : String
+  }
+  class ProductoProveedor {
+    +id_proveedor_producto : int
+    +precio_compra : decimal
+    +cantidad_minima : int
+    +tiempo_entrega : int
+  }
+}
+
+package "Ventas" {
+  class Cliente {
+    +id_clientes : int
+    +identificacion : int
+    +nombre_cliente : String
+    +apellido_cliente : String
+    +telefono : String
+    +correo : String
+  }
+  class Venta {
+    +id_venta : int
+    +numero_venta : String <<VEN-NNN>>
+    +fecha : Date
+    +subtotal : decimal
+    +iva : decimal
+    +descuento : decimal
+    +total : decimal
+  }
+  class DetVenta {
+    +id_detalleventa : int
+    +cantidad : int
+    +precio_venta : decimal
+    +iva_producto : decimal
+    +subtotal : decimal
+    +total : decimal
+  }
+  class DetVentaLote {
+    +id_det_venta_lote : int
+    +cantidad_tomada : int
+  }
+}
+
+Rol "1" -- "0..*" Usuario : asigna >
+Usuario "0..1" -- "0..*" Auditoria : genera >
+Categoria "1" -- "0..*" Producto : clasifica >
+Producto "1" *-- "0..*" Lote : se almacena en >
+IngresoMercancia "1" *-- "1..*" DetIngreso
+DetIngreso "0..*" --> "1" Producto
+DetIngreso "1" -- "1" Lote : crea >
+SalidaMercancia "1" *-- "1..*" DetSalida
+DetSalida "0..*" --> "1" Producto
+Proveedor "1" -- "0..*" ProductoProveedor
+Producto "1" -- "0..*" ProductoProveedor
+Cliente "0..1" -- "0..*" Venta : compra >
+Usuario "1" -- "0..*" Venta : registra >
+Venta "1" *-- "1..*" DetVenta
+DetVenta "0..*" --> "1" Producto
+DetVenta "1" *-- "1..*" DetVentaLote
+DetVentaLote "0..*" --> "1" Lote : consume (FEFO) >
+@enduml

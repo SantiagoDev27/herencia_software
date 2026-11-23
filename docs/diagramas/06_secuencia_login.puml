@@ -1,0 +1,53 @@
+@startuml secuencia_login
+!include _estilo.iuml
+title Diagrama de secuencia — Iniciar sesión con validación y bloqueo (HU-SEG-001/008/009)
+autonumber
+actor Usuario
+participant "AuthModal\n(React)" as UI
+participant "AuthContext" as CTX
+participant "POST /api/auth/login" as R
+participant "UsuarioController" as C
+participant "UsuarioService" as S
+participant "UsuarioRepository" as UR
+participant "AuditoriaRepository" as AR
+database MySQL
+
+Usuario -> UI : correo + contraseña
+UI -> CTX : login(correo, clave)
+CTX -> R : POST {correo_usuario, contraseña_usuario}
+R -> R : loginValidation + validarCampos
+alt campos vacíos o correo inválido
+  R --> UI : 400 detalles de validación
+else datos válidos
+  R -> C : login(req)
+  C -> S : loginUsuario(correo, clave, ip)
+  S -> UR : obtenerPorCorreo(correo)
+  UR -> MySQL : SELECT usuario JOIN rol
+  MySQL --> UR : fila
+  alt usuario no existe
+    S -> AR : registrar(LOGIN_FALLIDO)
+    S --> C : AppError 401 "Credenciales incorrectas."
+  else cuenta desactivada
+    S -> AR : registrar(LOGIN_RECHAZADO)
+    S --> C : AppError 403
+  else bloqueado_hasta > ahora
+    S --> C : AppError 423 "Cuenta bloqueada temporalmente"
+  else contraseña incorrecta (bcrypt.compare = false)
+    S -> UR : actualizar(intentos_fallidos + 1)
+    opt intentos >= 5
+      S -> UR : actualizar(bloqueado_hasta = ahora + 15 min)
+      S -> AR : registrar(CUENTA_BLOQUEADA)
+    end
+    S --> C : AppError 401
+  else credenciales correctas
+    S -> UR : actualizar(intentos = 0, ultimo_acceso = ahora)
+    S -> AR : registrar(LOGIN)
+    S -> S : generarToken(usuario) [JWT 8 h]
+    S --> C : {token, usuario}
+  end
+  C --> CTX : respuesta HTTP
+  CTX -> CTX : guardar token y usuario\n(localStorage)
+  CTX --> UI : sesión iniciada
+  UI --> Usuario : panel con menú según su rol
+end
+@enduml

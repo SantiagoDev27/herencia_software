@@ -1,0 +1,48 @@
+@startuml secuencia_venta
+!include _estilo.iuml
+title Diagrama de secuencia — Registrar venta, consumo FEFO y vencimiento al agotarse
+autonumber
+actor Vendedor
+participant "Ventas.jsx" as UI
+participant "VentaController" as C
+participant "VentaService" as S
+participant "ProductoRepository" as PR
+participant "LoteRepository" as LR
+participant "VentaRepository" as VR
+database MySQL
+
+Vendedor -> UI : productos y cantidades
+UI -> C : POST /api/ventas/ventas (JWT)
+C -> S : crearVentaCompleta(datos, detalles)\n(vendedor = usuario del token)
+S -> MySQL : BEGIN TRANSACTION
+loop por cada línea
+  S -> PR : obtenerPorIdSimple(id, FOR UPDATE)
+  S -> LR : obtenerStockTotalPorProducto(id)
+  alt stock insuficiente
+    S -> MySQL : ROLLBACK
+    S --> C : Error "Stock insuficiente"
+    C --> UI : 400
+  end
+  S -> S : precio e IVA del catálogo
+end
+S -> VR : generarNumeroVenta() → VEN-NNN
+S -> VR : creardatos(cabecera)
+loop por cada línea
+  S -> MySQL : INSERT det_venta
+  S -> LR : consumirStockFEFO(id, cantidad)
+  LR -> MySQL : UPDATE lote (vence primero = sale primero)
+  S -> MySQL : INSERT det_venta_lote
+  S -> PR : decrementarStock(id, cantidad)
+end
+S -> PR : sincronizarVencimiento(ids)
+alt stock = 0
+  PR -> MySQL : UPDATE producto SET fecha_vencimiento = NULL
+else quedan lotes
+  PR -> MySQL : fecha_vencimiento = MIN(lote con existencias)
+end
+S -> MySQL : COMMIT
+S --> C : venta + detalles
+C --> UI : 201
+UI -> UI : mostrar factura y avisarCambioDeDatos()
+note over UI : Las demás pantallas abiertas\nse actualizan solas (≤ 15 s)
+@enduml

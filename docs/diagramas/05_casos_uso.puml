@@ -1,0 +1,81 @@
+@startuml casos_uso
+!include _estilo.iuml
+title Diagrama de casos de uso — ERP Herencia de Papá v1.1
+left to right direction
+
+actor "Usuario autenticado" as U
+actor "Administrador" as A
+actor "Vendedor" as V
+actor "Finanzas" as F
+actor "Sistema\n(temporizador)" as S
+A --|> U
+V --|> U
+F --|> U
+
+rectangle "ERP Herencia de Papá" {
+  package "Seguridad" {
+    usecase "Iniciar sesión\n(HU-SEG-001)" as UC1
+    usecase "Validar credenciales\n(HU-SEG-008)" as UC1b
+    usecase "Bloquear por intentos\nfallidos (HU-SEG-009)" as UC1c
+    usecase "Cerrar sesión\n(HU-SEG-002)" as UC2
+    usecase "Cambiar contraseña\n(HU-SEG-004)" as UC3
+    usecase "Gestionar usuarios:\nañadir Vendedor/Finanzas,\neditar, desactivar (HU-SEG-005)" as UC4
+    usecase "Asignar rol\n(HU-SEG-006)" as UC5
+    usecase "Restablecer contraseña\n(HU-SEG-003)" as UC6
+    usecase "Consultar auditoría\n(HU-SEG-010)" as UC7
+    usecase "Mostrar menú según rol\n(HU-SEG-011)" as UC8
+    usecase "Cerrar sesión por\ninactividad (HU-SEG-012)" as UC9
+  }
+  package "Inventario" {
+    usecase "Registrar / actualizar\nproducto (HU-INV-001/002)" as I1
+    usecase "Retirar producto agotado\n(HU-INV-003)" as I2
+    usecase "Registrar entrada\ncon lote (HU-INV-004)" as I3
+    usecase "Registrar salida\n(HU-INV-005)" as I4
+    usecase "Consultar existencias\n(HU-INV-006)" as I5
+    usecase "Quitar vencimiento\nal agotarse" as I6
+    usecase "Alertas de stock y\nvencimiento (HU-INV-007)" as I7
+    usecase "Reporte de inventario\n(HU-INV-008)" as I8
+  }
+  package "Ventas y proveedores" {
+    usecase "Registrar venta\n(HU-VEN-001)" as V1
+    usecase "Consultar ventas del\núltimo mes (HU-VEN-004)" as V2
+    usecase "Generar factura PDF\n(HU-VEN-005)" as V3
+    usecase "Gestionar proveedores\n(HU-PROV-001..005)" as P1
+  }
+  package "Finanzas" {
+    usecase "Reporte general de ventas\n(HU-VEN-008 / HU-CON-008)" as R1
+    usecase "Exportar a PDF / Excel" as R2
+    usecase "Actualizar pantallas\nautomáticamente" as R3
+  }
+}
+
+U --> UC1
+U --> UC2
+U --> UC3
+U --> UC8
+UC1 ..> UC1b : <<include>>
+UC1c ..> UC1 : <<extend>>
+A --> UC4
+A --> UC5
+A --> UC6
+A --> UC7
+UC4 ..> UC5 : <<include>>
+S --> UC9
+S --> R3
+V --> I1
+V --> I2
+V --> I3
+V --> I4
+V --> V1
+V --> P1
+U --> I5
+U --> I7
+U --> V2
+U --> V3
+F --> R1
+F --> I8
+A --> R1
+R1 ..> R2 : <<include>>
+V1 ..> I6 : <<include>>
+I4 ..> I6 : <<include>>
+@enduml

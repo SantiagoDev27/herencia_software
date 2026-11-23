@@ -1,0 +1,41 @@
+@startuml secuencia_crear_usuario
+!include _estilo.iuml
+title Diagrama de secuencia — Administrador añade un usuario Vendedor o Finanzas (HU-SEG-005/006)
+autonumber
+actor Administrador
+participant "Usuarios.jsx" as UI
+participant "usuarioService" as FS
+participant "authMiddleware" as MW
+participant "UsuarioController" as C
+participant "UsuarioService" as S
+participant "UsuarioRepository" as UR
+participant "AuditoriaRepository" as AR
+database MySQL
+
+Administrador -> UI : "Añadir usuario" (datos, rol, contraseña inicial)
+UI -> UI : validarClave() (8+, letras y números)
+UI -> FS : crear(datos)
+FS -> MW : POST /api/usuarios + Bearer JWT
+MW -> MySQL : verificar que el usuario del token siga activo
+MW -> MW : esAdmin()
+alt no es Administrador
+  MW --> UI : 403 "No tienes permisos"
+else Administrador
+  MW -> C : crearUsuarioValidation → crearUsuario(req)
+  C -> S : crearUsuario(datos, admin)
+  S -> S : rol ∈ {1, 2, 3}
+  S -> UR : obtenerPorCorreo(correo)
+  alt correo ya registrado
+    S --> C : AppError 409
+  else correo libre
+    S -> S : bcrypt.hash(contraseña)
+    S -> UR : crear(usuario activo)
+    UR -> MySQL : INSERT usuario
+    S -> AR : registrar(CREAR_USUARIO)
+    S --> C : usuario (sin contraseña)
+    C --> UI : 201 Created
+    UI -> UI : recargar lista + aviso de éxito
+  end
+end
+UI --> Administrador : nuevo usuario en la tabla
+@enduml

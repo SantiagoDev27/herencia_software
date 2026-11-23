@@ -1,0 +1,164 @@
+{
+ "resultados": [
+  {
+   "cp": "002",
+   "esc": "E3",
+   "desc": "La pantalla de inicio no ofrece registro público",
+   "ok": true,
+   "obtenido": "Solo formulario de inicio de sesión",
+   "captura": "/home/claude/test/capturas/u_login.png"
+  },
+  {
+   "cp": "001",
+   "esc": "E2",
+   "desc": "Mensaje de error con contraseña incorrecta",
+   "ok": true,
+   "obtenido": "Se muestra 'Credenciales incorrectas.'",
+   "captura": "/home/claude/test/capturas/u_login_error.png"
+  },
+  {
+   "cp": "007",
+   "esc": "E4",
+   "desc": "Administrador ve todos los módulos, incluido Usuarios",
+   "ok": true,
+   "obtenido": "Menú: PRINCIPAL ·  · Resumen ·  · INVENTARIO ·  · Productos · Entradas y salidas ·  · COMERCIAL ·  · Ventas · Proveedores ·  · SISTEMA ·  · Reportes · Usuarios · Mi cuenta",
+   "captura": "/home/claude/test/capturas/u_admin_dashboard.png"
+  },
+  {
+   "cp": "003",
+   "esc": "E7",
+   "desc": "Listado de usuarios con rol y estado",
+   "ok": true,
+   "obtenido": "Lista usuarios con rol, estado y último acceso",
+   "captura": "/home/claude/test/capturas/u_usuarios.png"
+  },
+  {
+   "cp": "003",
+   "esc": "E8",
+   "desc": "Añadir usuario Vendedor desde la interfaz",
+   "ok": true,
+   "obtenido": "Mensaje de confirmación y usuario en la lista",
+   "captura": "/home/claude/test/capturas/u_usuario_creado.png"
+  },
+  {
+   "cp": "008",
+   "esc": "E2",
+   "desc": "Consulta de la auditoría en la interfaz",
+   "ok": true,
+   "obtenido": "Tabla con fecha, usuario, acción, detalle e IP",
+   "captura": "/home/claude/test/capturas/u_auditoria.png"
+  },
+  {
+   "cp": "007",
+   "esc": "E5",
+   "desc": "Vendedor solo ve sus módulos",
+   "ok": true,
+   "obtenido": "Menú: PRINCIPAL ·  · Resumen ·  · INVENTARIO ·  · Productos · Entradas y salidas ·  · COMERCIAL ·  · Ventas · Proveedores ·  · SISTEMA ·  · Mi cuenta",
+   "captura": "/home/claude/test/capturas/u_menu_vendedor.png"
+  },
+  {
+   "cp": "007",
+   "esc": "E6",
+   "desc": "Vendedor que escribe la URL de Usuarios es redirigido",
+   "ok": true,
+   "obtenido": "URL final: /dashboard",
+   "captura": "/home/claude/test/capturas/u_vendedor_redirect.png"
+  },
+  {
+   "cp": "009",
+   "esc": "E7",
+   "desc": "Producto agotado se muestra sin fecha de vencimiento",
+   "ok": true,
+   "obtenido": "Columna Vencimiento: 'Sin existencias'",
+   "captura": "/home/claude/test/capturas/u_productos.png"
+  },
+  {
+   "cp": "010",
+   "esc": "E4",
+   "desc": "Retirar agotados desde la interfaz",
+   "ok": true,
+   "obtenido": "Confirmación y el producto sale del catálogo",
+   "captura": "/home/claude/test/capturas/u_retirados.png"
+  },
+  {
+   "cp": "012",
+   "esc": "E3",
+   "desc": "Ventas muestra por defecto el último mes",
+   "ok": true,
+   "obtenido": "Filtro 'Último mes' activo; ventas antiguas ocultas",
+   "captura": "/home/claude/test/capturas/u_ventas_mes.png"
+  },
+  {
+   "cp": "012",
+   "esc": "E4",
+   "desc": "Opción 'Todo' muestra ventas antiguas",
+   "ok": true,
+   "obtenido": "Aparecen VEN-H01 y VEN-H02",
+   "captura": "/home/claude/test/capturas/u_ventas_todo.png"
+  },
+  {
+   "cp": "013",
+   "esc": "E1",
+   "desc": "Una venta hecha por otro usuario aparece sin recargar",
+   "ok": true,
+   "obtenido": "VEN-006 apareció tras ≤15 s sin pulsar recargar",
+   "captura": "/home/claude/test/capturas/u_ventas_auto.png"
+  },
+  {
+   "cp": "012",
+   "esc": "E5",
+   "desc": "Entradas y salidas muestran el último mes",
+   "ok": true,
+   "obtenido": "Selector 'Mostrar: Último mes' activo",
+   "captura": "u_movimientos_mes.png"
+  },
+  {
+   "cp": "007",
+   "esc": "E7",
+   "desc": "Finanzas ve Reportes y no Productos ni Usuarios",
+   "ok": true,
+   "obtenido": "Menú: PRINCIPAL ·  · Resumen ·  · INVENTARIO ·  · Entradas y salidas ·  · COMERCIAL ·  · Ventas ·  · SISTEMA ·  · Reportes · Mi cuenta",
+   "captura": "/home/claude/test/capturas/u_menu_finanzas.png"
+  },
+  {
+   "cp": "011",
+   "esc": "E6",
+   "desc": "Reporte general de ventas en pantalla (último mes)",
+   "ok": true,
+   "obtenido": "Indicadores, gráfico diario, productos, vendedores y detalle",
+   "captura": "/home/claude/test/capturas/u_reporte_ventas.png"
+  },
+  {
+   "cp": "011",
+   "esc": "E7",
+   "desc": "Exportar el reporte a Excel (CSV)",
+   "ok": true,
+   "obtenido": "Archivo descargado: Reporte-Ventas-2026-10-24-a-2026-11-23.csv",
+   "captura": "u_reporte_ventas.png"
+  },
+  {
+   "cp": "011",
+   "esc": "E8",
+   "desc": "Exportar el reporte a PDF desde la interfaz",
+   "ok": true,
+   "obtenido": "Archivo descargado: Reporte-Ventas-2026-10-24-a-2026-11-23.pdf",
+   "captura": "u_reporte_ventas.png"
+  },
+  {
+   "cp": "006",
+   "esc": "E4",
+   "desc": "Cambio de contraseña valida la clave robusta en la interfaz",
+   "ok": true,
+   "obtenido": "Mensaje de validación",
+   "captura": "/home/claude/test/capturas/u_mi_cuenta.png"
+  },
+  {
+   "cp": "014",
+   "esc": "E1",
+   "desc": "La sesión se cierra tras 15 minutos sin actividad",
+   "ok": true,
+   "obtenido": "Vuelve al inicio con aviso de inactividad",
+   "captura": "/home/claude/test/capturas/u_inactividad.png"
+  }
+ ]
+}

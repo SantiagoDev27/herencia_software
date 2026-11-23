@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import {
   Truck, Plus, Search, RefreshCw, Trash2, Pencil, Phone, MapPin, Package, Link2, Check, X,
 } from "lucide-react";
@@ -115,15 +116,17 @@ export default function Proveedores() {
     }
   }, []);
 
-  const cargarProveedores = useCallback(async () => {
-    setCargando(true);
+  const cargarProveedores = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     try {
       setProveedores(toList(await proveedorService.obtenerTodos()));
     } catch (err) {
-      setProveedores([]);
-      setAviso({ tipo: "error", texto: err.mensaje });
+      if (!silencioso) {
+        setProveedores([]);
+        setAviso({ tipo: "error", texto: err.mensaje });
+      }
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
   }, []);
 
@@ -131,6 +134,12 @@ export default function Proveedores() {
     cargarProveedores();
     cargarConteo();
   }, [cargarProveedores, cargarConteo]);
+  useAutoRefresh(
+    useCallback((silencioso) => {
+      cargarProveedores(silencioso);
+      cargarConteo();
+    }, [cargarProveedores, cargarConteo])
+  );
 
   const abrirModalNuevo = () => {
     setProveedorEditando(null);
@@ -303,7 +312,7 @@ export default function Proveedores() {
         title="Directorio de proveedores"
         description="Información de contacto y catálogo de compra de cada proveedor."
       >
-        <button onClick={cargarProveedores} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
+        <button onClick={() => cargarProveedores()} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
           <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
         </button>
         <button onClick={abrirModalNuevo} className="btn btn-primary">

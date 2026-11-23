@@ -13,6 +13,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { Notice } from "../components/ui/Notice";
 import { Badge } from "../components/ui/Badge";
 import { useAuth } from "../context/AuthContext";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import reporteService from "../service/reporteService";
 import ventaService from "../service/ventaService";
 import movimientoService from "../service/movimientoService";
@@ -48,8 +49,8 @@ export function Dashboard() {
   const [proveedores, setProveedores] = useState([]);
   const [alertas, setAlertas] = useState({ stockMinimo: [], proximosVencer: [], agotados: [] });
 
-  const cargarDatos = useCallback(async () => {
-    setCargando(true);
+  const cargarDatos = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     const [resRep, resVentas, resIng, resProv, resAlertas] = await Promise.allSettled([
       reporteService.obtenerReporteInventario(),
       ventaService.listarVentas({ pagina: 1, limite: 100 }),
@@ -69,17 +70,21 @@ export function Dashboard() {
     if (resAlertas.status === "fulfilled") setAlertas(resAlertas.value);
 
     const fallos = [resRep, resVentas, resIng, resProv].filter((r) => r.status === "rejected");
-    setAviso(
-      fallos.length
-        ? { tipo: "warning", texto: `${fallos[0].reason?.mensaje ?? "Algunos datos no se pudieron cargar."}` }
-        : null
-    );
-    setCargando(false);
+    if (!silencioso || !fallos.length) {
+      setAviso(
+        fallos.length
+          ? { tipo: "warning", texto: `${fallos[0].reason?.mensaje ?? "Algunos datos no se pudieron cargar."}` }
+          : null
+      );
+    }
+    if (!silencioso) setCargando(false);
   }, []);
 
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
+  // El resumen se mantiene al día sin recargar la página
+  useAutoRefresh(cargarDatos);
 
   const resumen = reporte?.resumen ?? {};
   const inventario = useMemo(() => reporte?.inventario ?? [], [reporte]);
@@ -140,7 +145,7 @@ export function Dashboard() {
   return (
     <div className="space-y-5 p-4 sm:p-6">
       <PageHeader title="Resumen general" description="Indicadores del negocio con datos en vivo del backend.">
-        <button onClick={cargarDatos} className="btn btn-outline btn-sm">
+        <button onClick={() => cargarDatos()} className="btn btn-outline btn-sm">
           <RefreshCw size={14} className={cargando ? "animate-spin" : ""} />
           Actualizar
         </button>

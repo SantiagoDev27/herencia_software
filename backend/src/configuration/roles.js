@@ -4,12 +4,13 @@
 // (ver src/scrips/seedUsuario.js). El token JWT guarda este nombre en "rol".
 //
 //  - Administrador: acceso total.
-//  - Empleado:      ventas, inventario (productos, entradas y salidas) y proveedores.
+//  - Vendedor:      ventas, inventario (productos, entradas y salidas) y proveedores.
+//                   (antes se llamaba "Empleado"; la constante EMPLEADO se mantiene por compatibilidad)
 //  - Finanzas:      contabilidad: consulta de ventas, movimientos y reportes.
 // ============================================================
 export const ROLES = Object.freeze({
     ADMINISTRADOR: "Administrador",
-    EMPLEADO: "Empleado",
+    EMPLEADO: "Vendedor",
     FINANZAS: "Finanzas",
 });
 
@@ -45,3 +46,6 @@ export const rolNormalizado = (usuario) =>
 export const TODOS = [ROLES.ADMINISTRADOR, ROLES.EMPLEADO, ROLES.FINANZAS];
 export const OPERACION = [ROLES.ADMINISTRADOR, ROLES.EMPLEADO]; // registrar ventas, inventario, proveedores
 export const CONTABILIDAD = [ROLES.ADMINISTRADOR, ROLES.FINANZAS]; // reportes financieros
+
+// Ids de rol que el administrador puede asignar al crear o editar usuarios
+export const ROLES_ASIGNABLES = [1, 2, 3];

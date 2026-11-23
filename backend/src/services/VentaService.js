@@ -144,6 +144,12 @@ class VentaService {
                 );
             }
 
+            // Si un producto se agotó, pierde su fecha de vencimiento; si no, toma la del siguiente lote
+            await ProductoRepository.sincronizarVencimiento(
+                detallesCalculados.map((d) => d.fk_det_venta_id_producto),
+                transaction
+            );
+
             await transaction.commit();
 
             return await this.obtenerVentaConDetalles(nuevaVenta.id_venta);
@@ -182,10 +188,10 @@ class VentaService {
     }
 
     async listarVentas(filtros) {
-        const { pagina = 1, limite = 10, fechaInicio, fechaFin, fk_venta_id_cliente } = filtros;
+        const { pagina = 1, limite = 10, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta } = filtros;
 
         const paginaNum = Math.max(parseInt(pagina, 10) || 1, 1);
-        const limiteNum = Math.max(parseInt(limite, 10) || 10, 1);
+        const limiteNum = Math.min(Math.max(parseInt(limite, 10) || 10, 1), 500);
         const offset = (paginaNum - 1) * limiteNum;
 
         const resultado = await VentaRepository.obtenerTodos({
@@ -193,7 +199,8 @@ class VentaService {
             offset,
             fechaInicio,
             fechaFin,
-            fk_venta_id_cliente
+            fk_venta_id_cliente,
+            numero_venta
         });
 
         return {

@@ -43,6 +43,29 @@ const Usuario = sequelize.define('Usuario', {
       model: Rol,
       key: 'idrol'
     }
+  },
+  // Columnas de control de cuenta (las crea configuration/esquemaSeguridad.js si no existen)
+  estado_usuario: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+    field: 'estado_usuario'
+  },
+  intentos_fallidos: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: 'intentos_fallidos'
+  },
+  bloqueado_hasta: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    field: 'bloqueado_hasta'
+  },
+  ultimo_acceso: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    field: 'ultimo_acceso'
   }
 }, {
   tableName: 'usuario',

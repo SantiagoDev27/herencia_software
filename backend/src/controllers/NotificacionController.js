@@ -1,4 +1,4 @@
-import NotificacionService from '../services/NotificacionService.js';
+import NotificacionService from '../services/notificacionService.js';
 
 class NotificacionController {
 

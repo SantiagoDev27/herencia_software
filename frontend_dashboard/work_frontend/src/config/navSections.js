@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Package, ArrowLeftRight, ShoppingCart, Truck, BarChart3,
+  LayoutDashboard, Package, ArrowLeftRight, ShoppingCart, Truck, BarChart3, Users, UserRound,
 } from "lucide-react";
 
 // Solo módulos que tienen servicio real en el backend.
@@ -25,6 +25,10 @@ export const navSections = [
   },
   {
     label: "Sistema",
-    items: [{ id: "reportes", label: "Reportes", icon: BarChart3, path: "reportes", permiso: "reportes" }],
+    items: [
+      { id: "reportes", label: "Reportes", icon: BarChart3, path: "reportes", permiso: "reportes" },
+      { id: "usuarios", label: "Usuarios", icon: Users, path: "usuarios", permiso: "usuarios" },
+      { id: "cuenta", label: "Mi cuenta", icon: UserRound, path: "cuenta", permiso: "cuenta" },
+    ],
   },
 ];

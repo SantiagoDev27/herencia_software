@@ -1,6 +1,8 @@
 import { Op } from "sequelize";
+import sequelize from '../configuration/database.js';
 import Producto from '../models/ProductModels.js';
 import Categoria from '../models/CategoriesModels.js';
+import Lote from '../models/loteModel.js';
 
 class ProductoRepository {
 
@@ -100,6 +102,8 @@ class ProductoRepository {
 
     return await Producto.findAll({
         where: {
+            // Los agotados no cuentan como "próximos a vencer": ya no tienen unidades
+            stock: { [Op.gt]: 0 },
             fecha_vencimiento: {
                 [Op.between]: [fechaActual, fechaLimite]
             }
@@ -114,8 +118,67 @@ class ProductoRepository {
 }
   async contarProductos() {
     return await Producto.count();
+  }
 
+  // ============================================
+  // Vencimientos: la fecha del producto = vencimiento más próximo de sus lotes con existencias.
+  // Si el producto se agota (stock <= 0) o ya no le quedan lotes, la fecha queda en NULL.
+  // ============================================
+  async sincronizarVencimiento(ids, transaction = null) {
+    const lista = [...new Set([].concat(ids).map(Number).filter(Boolean))];
+    for (const id_producto of lista) {
+      const producto = await Producto.findByPk(id_producto, { transaction, attributes: ['id_producto', 'stock'] });
+      if (!producto) continue;
 
+      let fecha = null;
+      if (Number(producto.stock) > 0) {
+        const lotesDelProducto = await Lote.count({ where: { fk_lote_id_producto: id_producto }, transaction });
+        if (lotesDelProducto === 0) continue; // producto sin manejo por lotes: se conserva su fecha manual
+        fecha = await Lote.min('fecha_vencimiento', {
+          where: { fk_lote_id_producto: id_producto, cantidad_actual: { [Op.gt]: 0 } },
+          transaction
+        }) ?? null;
+      }
+      await Producto.update({ fecha_vencimiento: fecha }, { where: { id_producto }, transaction });
+    }
+  }
+
+  // Sincroniza todo el catálogo (se ejecuta al arrancar el servidor). Devuelve cuántos productos cambió.
+  async sincronizarVencimientos() {
+    // 1. Agotados: sin fecha
+    const [agotados] = await Producto.update(
+      { fecha_vencimiento: null },
+      { where: { stock: { [Op.lte]: 0 }, fecha_vencimiento: { [Op.ne]: null } } }
+    );
+    // 2. Con existencias y lotes: fecha del lote disponible más próximo a vencer
+    let conLotes = 0;
+    try {
+      const filas = await Lote.findAll({
+        attributes: ['fk_lote_id_producto', [sequelize.fn('MIN', sequelize.col('fecha_vencimiento')), 'proximo']],
+        where: { cantidad_actual: { [Op.gt]: 0 } },
+        group: ['fk_lote_id_producto'],
+        raw: true
+      });
+      for (const fila of filas) {
+        const [n] = await Producto.update(
+          { fecha_vencimiento: fila.proximo },
+          { where: { id_producto: fila.fk_lote_id_producto, stock: { [Op.gt]: 0 } } }
+        );
+        conLotes += n;
+      }
+    } catch (error) {
+      // La tabla de lotes puede no existir en bases antiguas: solo se aplica el paso 1
+    }
+    return agotados + conLotes;
+  }
+
+  // "Retirar" productos agotados del catálogo (soft delete): dejan de aparecer pero
+  // conservan su historial de ventas y movimientos (requisito 2.2.1.3 Integridad).
+  async retirarAgotados() {
+    const agotados = await Producto.findAll({ where: { stock: { [Op.lte]: 0 } }, attributes: ['id_producto', 'nombre_producto'] });
+    if (agotados.length === 0) return [];
+    await Producto.destroy({ where: { id_producto: agotados.map((p) => p.id_producto) } });
+    return agotados;
   }
 
 }

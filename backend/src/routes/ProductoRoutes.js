@@ -40,6 +40,13 @@ router.get(
   productoController.listarProductos
 );
 
+// HU-INV-03: Retirar todos los productos agotados (soft delete; conservan su historial)
+router.post(
+  '/retirar-agotados',
+  permitirRoles(...OPERACION),
+  productoController.retirarAgotados
+);
+
 // HU-INV-01: Registrar producto
 router.post(
   '/',

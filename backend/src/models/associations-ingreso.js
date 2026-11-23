@@ -1,4 +1,4 @@
-import IngresoMercancia from "./ingresoMercancia.model.js";
+import IngresoMercancia from "./IngresoMercancia.model.js";
 import DetIngreso from "./detIngreso.model.js";
 import SalidaMercancia from "./SalidaMercanciaModel.js";
 import DetlSalida from "./DetlSalidaModel.js";

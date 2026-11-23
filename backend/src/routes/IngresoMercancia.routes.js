@@ -2,7 +2,7 @@ import { Router } from "express";
 import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
 import { OPERACION } from '../configuration/roles.js';
 import IngresoMercanciaController from "../controllers/IngresoMercancia.controller.js";
-import { registrarEntradaValidation } from "../validations/IngresoMercancia.validation.js";
+import { registrarEntradaValidation } from "../validations/ingresoMercancia.validation.js";
 import { validarCampos } from "../middleware/validarCampos.middleware.js";
 
 const router = Router();

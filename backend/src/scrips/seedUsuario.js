@@ -3,17 +3,21 @@ import sequelize from '../configuration/database.js';
 import Rol from '../models/RolesModels.js';
 import Usuario from '../models/UsuariosModels.js';
 import Categoria from '../models/CategoriesModels.js';
+import { prepararEsquemaSeguridad } from '../configuration/esquemaSeguridad.js';
 
 const seed = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ Conexión a la base de datos exitosa.');
 
+    // Columnas de seguridad (estado, intentos, bloqueo) y tabla de auditoría, por si el servidor aún no se ha ejecutado
+    await prepararEsquemaSeguridad(sequelize);
+
     // 1. Asegurar los tres roles del sistema (si ya existían con otro nombre, se renombran)
-    //    1 Administrador: todo · 2 Empleado: ventas e inventario · 3 Finanzas: contabilidad
+    //    1 Administrador: todo · 2 Vendedor: ventas e inventario · 3 Finanzas: contabilidad
     const rolesData = [
       { idrol: 1, nombre_rol: 'Administrador', descripcion: 'Acceso total al sistema' },
-      { idrol: 2, nombre_rol: 'Empleado', descripcion: 'Ventas, inventario y proveedores' },
+      { idrol: 2, nombre_rol: 'Vendedor', descripcion: 'Ventas, inventario y proveedores' },
       { idrol: 3, nombre_rol: 'Finanzas', descripcion: 'Contabilidad: ventas, movimientos y reportes' },
     ];
 
@@ -47,7 +51,7 @@ const seed = async () => {
     // 3. Un usuario inicial por cada rol (solo se crean si el correo no existe)
     const usuariosIniciales = [
       { nombre: 'Administrador', apellido: 'Sistema', correo: 'admin@herenciadepapa.com', clave: 'admin1234', telefono: '3001234567', rol: 1 },
-      { nombre: 'Empleado', apellido: 'Tienda', correo: 'empleado@herenciadepapa.com', clave: 'empleado1234', telefono: '3001234568', rol: 2 },
+      { nombre: 'Vendedor', apellido: 'Tienda', correo: 'vendedor@herenciadepapa.com', clave: 'vendedor1234', telefono: '3001234568', rol: 2 },
       { nombre: 'Finanzas', apellido: 'Contabilidad', correo: 'finanzas@herenciadepapa.com', clave: 'finanzas1234', telefono: '3001234569', rol: 3 },
     ];
 

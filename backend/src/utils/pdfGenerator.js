@@ -61,6 +61,173 @@ class PdfGenerator {
         doc.end();
     }
 
+    // ==========================================================
+    // REPORTE GENERAL DE VENTAS (Finanzas)
+    // ==========================================================
+    generarReporteVentas(res, reporte) {
+        const doc = new PDFDocument({
+            margins: { top: 40, bottom: 50, left: 40, right: 40 },
+            size: "A4",
+            bufferPages: true,
+        });
+
+        const { fechaInicio, fechaFin } = reporte.periodo;
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename=reporte-ventas-${fechaInicio}-a-${fechaFin}.pdf`
+        );
+        doc.pipe(res);
+
+        this._dibujarEncabezado(doc, "REPORTE GENERAL DE VENTAS", `Del ${fechaInicio} al ${fechaFin}`);
+
+        const r = reporte.resumen;
+        this._dibujarCajasResumen(doc, [
+            { label: "Ventas", value: String(r.cantidadVentas) },
+            { label: "Unidades vendidas", value: String(r.unidadesVendidas) },
+            { label: "Ticket promedio", value: this._formatearMoneda(r.ticketPromedio) },
+            { label: "Subtotal", value: this._formatearMoneda(r.subtotal) },
+            { label: "IVA recaudado", value: this._formatearMoneda(r.iva) },
+            { label: "Descuentos", value: this._formatearMoneda(r.descuentos) },
+            { label: "Total vendido", value: this._formatearMoneda(r.totalVentas) },
+            { label: "Costo de ventas", value: this._formatearMoneda(r.costoVentas) },
+            { label: `Utilidad bruta (${Number(r.margenBruto).toFixed(1)}%)`, value: this._formatearMoneda(r.utilidadBruta) },
+        ]);
+
+        this._dibujarTabla(doc, "Ventas e IVA por día", [
+            { label: "Fecha", width: 0.25 },
+            { label: "N° ventas", width: 0.15, align: "right" },
+            { label: "Subtotal", width: 0.20, align: "right" },
+            { label: "IVA", width: 0.20, align: "right" },
+            { label: "Total", width: 0.20, align: "right" },
+        ], reporte.porDia.map((d) => [
+            d.fecha, String(d.cantidadVentas), this._formatearMoneda(d.subtotal, false),
+            this._formatearMoneda(d.iva, false), this._formatearMoneda(d.total, false),
+        ]), "No hubo ventas en el periodo.");
+
+        this._dibujarTabla(doc, "Productos más vendidos", [
+            { label: "Producto", width: 0.36 },
+            { label: "Unidades", width: 0.12, align: "right" },
+            { label: "Ventas (sin IVA)", width: 0.18, align: "right" },
+            { label: "Costo", width: 0.17, align: "right" },
+            { label: "Utilidad", width: 0.17, align: "right" },
+        ], reporte.porProducto.map((p) => [
+            p.nombre_producto, String(p.unidades), this._formatearMoneda(p.subtotal, false),
+            this._formatearMoneda(p.costo, false), this._formatearMoneda(p.utilidad, false),
+        ]), "Sin productos vendidos.");
+
+        this._dibujarTabla(doc, "Ventas por vendedor", [
+            { label: "Vendedor", width: 0.50 },
+            { label: "N° ventas", width: 0.20, align: "right" },
+            { label: "Total", width: 0.30, align: "right" },
+        ], reporte.porVendedor.map((v) => [
+            v.vendedor, String(v.cantidadVentas), this._formatearMoneda(v.total, false),
+        ]), "Sin ventas registradas.");
+
+        this._dibujarTabla(doc, "Detalle de ventas", [
+            { label: "N° venta", width: 0.14 },
+            { label: "Fecha", width: 0.14 },
+            { label: "Vendedor", width: 0.22 },
+            { label: "Subtotal", width: 0.16, align: "right" },
+            { label: "IVA", width: 0.14, align: "right" },
+            { label: "Total", width: 0.20, align: "right" },
+        ], reporte.ventas.map((v) => [
+            v.numero_venta, v.fecha, v.vendedor, this._formatearMoneda(v.subtotal, false),
+            this._formatearMoneda(v.iva, false), this._formatearMoneda(v.total, false),
+        ]), "Sin ventas registradas.");
+
+        this._dibujarPiePagina(doc);
+        doc.end();
+    }
+
+    // Cuadrícula de indicadores (3 por fila)
+    _dibujarCajasResumen(doc, items) {
+        const startX = doc.page.margins.left;
+        const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const porFila = 3;
+        const gap = 8;
+        const ancho = (pageWidth - gap * (porFila - 1)) / porFila;
+        const alto = 42;
+        let y = doc.y;
+
+        items.forEach((item, i) => {
+            const col = i % porFila;
+            if (i > 0 && col === 0) y += alto + gap;
+            const x = startX + col * (ancho + gap);
+            doc.roundedRect(x, y, ancho, alto, 4).fillAndStroke("#f7f1f3", "#e3c9d2");
+            doc.fillColor("#666666").font("Helvetica").fontSize(8).text(item.label, x + 8, y + 7, { width: ancho - 16 });
+            doc.fillColor("#7a1f3d").font("Helvetica-Bold").fontSize(12).text(item.value, x + 8, y + 20, { width: ancho - 16 });
+        });
+
+        doc.fillColor("#000000");
+        doc.y = y + alto + 20;
+    }
+
+    // Tabla genérica con salto de página y encabezado repetido
+    _dibujarTabla(doc, titulo, columnas, filas, textoVacio = "Sin datos.") {
+        const startX = doc.page.margins.left;
+        const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const limite = () => doc.page.height - doc.page.margins.bottom - 30;
+        const colWidths = columnas.map((c) => Math.floor(c.width * pageWidth));
+        const rowHeight = 18;
+        const headerHeight = 20;
+
+        if (doc.y + 70 > limite()) {
+            doc.addPage();
+            doc.y = doc.page.margins.top;
+        }
+
+        doc.fillColor("#000000").font("Helvetica-Bold").fontSize(11).text(titulo, startX, doc.y);
+        doc.y += 6;
+
+        const encabezado = () => {
+            let x = startX;
+            const y = doc.y;
+            doc.rect(startX, y, pageWidth, headerHeight).fillAndStroke("#7a1f3d", "#7a1f3d");
+            doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(8.5);
+            columnas.forEach((col, i) => {
+                doc.text(col.label, x + 4, y + 6, { width: colWidths[i] - 8, align: col.align ?? "left" });
+                x += colWidths[i];
+            });
+            doc.y = y + headerHeight;
+        };
+
+        encabezado();
+
+        if (filas.length === 0) {
+            doc.fillColor("#666666").font("Helvetica-Oblique").fontSize(9).text(textoVacio, startX + 4, doc.y + 6);
+            doc.y += 26;
+            doc.fillColor("#000000");
+            return;
+        }
+
+        filas.forEach((fila, idx) => {
+            if (doc.y + rowHeight > limite()) {
+                doc.addPage();
+                doc.y = doc.page.margins.top;
+                encabezado();
+            }
+            const y = doc.y;
+            let x = startX;
+            if (idx % 2 === 0) doc.rect(startX, y, pageWidth, rowHeight).fill("#f4f4f7");
+            doc.fillColor("#000000").font("Helvetica").fontSize(8.5);
+            fila.forEach((valor, i) => {
+                doc.text(String(valor ?? ""), x + 4, y + 5, {
+                    width: colWidths[i] - 8,
+                    align: columnas[i].align ?? "left",
+                    ellipsis: true,
+                    lineBreak: false,
+                });
+                x += colWidths[i];
+            });
+            doc.rect(startX, y, pageWidth, rowHeight).stroke("#dddddd");
+            doc.y = y + rowHeight;
+        });
+
+        doc.fillColor("#000000");
+        doc.y += 18;
+    }
+
     // ==========================
     // ENCABEZADO (con logo + branding)
     // ==========================
@@ -525,6 +692,9 @@ class PdfGenerator {
             const startX = doc.page.margins.left;
             const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
             const y = doc.page.height - doc.page.margins.bottom + 15;
+            // El pie queda dentro del margen inferior: sin esto PDFKit agrega páginas en blanco
+            const margenInferior = doc.page.margins.bottom;
+            doc.page.margins.bottom = 0;
 
             doc
                 .fontSize(8)
@@ -535,6 +705,7 @@ class PdfGenerator {
                     width: pageWidth,
                     align: "right",
                 });
+            doc.page.margins.bottom = margenInferior;
         }
     }
 

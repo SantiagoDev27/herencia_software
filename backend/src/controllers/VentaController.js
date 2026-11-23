@@ -1,5 +1,5 @@
 import VentaService from "../services/VentaService.js";
-import PdfGenerator from "../utils/PdfGenerator.js";
+import PdfGenerator from "../utils/pdfGenerator.js";
 
 class VentaController {
 
@@ -11,7 +11,8 @@ class VentaController {
             const datosVenta = {
                 fecha,
                 fk_venta_id_cliente,
-                fk_venta_id_usuario,
+                // El vendedor es el usuario autenticado (trazabilidad / auditoría)
+                fk_venta_id_usuario: req.usuario?.idusuario ?? fk_venta_id_usuario,
                 descuento
             };
 
@@ -70,14 +71,15 @@ class VentaController {
     // GET /ventas - Listar todas las ventas con paginación y filtros opcionales
     async listar(req, res) {
         try {
-            const { pagina, limite, fechaInicio, fechaFin, fk_venta_id_cliente } = req.query;
+            const { pagina, limite, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta } = req.query;
 
             const resultado = await VentaService.listarVentas({
                 pagina,
                 limite,
                 fechaInicio,
                 fechaFin,
-                fk_venta_id_cliente
+                fk_venta_id_cliente,
+                numero_venta
             });
 
             return res.status(200).json({

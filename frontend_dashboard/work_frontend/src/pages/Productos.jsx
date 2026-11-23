@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Search, RefreshCw, Trash2, Pencil, Info, Truck } from "lucide-react";
+import { Plus, Search, RefreshCw, Trash2, Pencil, Info, Truck, Archive } from "lucide-react";
 import productoService from "../service/productoService";
 import proveedorService from "../service/proveedorService";
 import { ProveedoresDeProductoModal } from "../components/ProveedoresDeProductoModal";
+import { useAuth } from "../context/AuthContext";
+import { useAutoRefresh, avisarCambioDeDatos } from "../hooks/useAutoRefresh";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Modal, ConfirmDialog } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
 import { Badge, EstadoBadge } from "../components/ui/Badge";
 import {
-  fmtCOP, fmtFecha, toList, estadoStock, diasParaVencer, hoyISO,
+  fmtCOP, fmtFecha, toList, estadoStock, diasParaVencer,
   UMBRAL_STOCK_BAJO, DIAS_POR_VENCER,
 } from "../lib/format";
 
@@ -37,12 +39,12 @@ const FORM_VACIO = {
   costo_produccion: "",
   precio_venta: "",
   iva: 19,
-  fecha_produccion: "",
-  fecha_vencimiento: "",
 };
 
 export default function Productos() {
   const [searchParams] = useSearchParams();
+  const { puede } = useAuth();
+  const puedeRetirar = puede("retirarProducto");
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState("todos");
@@ -61,6 +63,7 @@ export default function Productos() {
 
   const [porEliminar, setPorEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
+  const [confirmarRetiroMasivo, setConfirmarRetiroMasivo] = useState(false);
 
   // El buscador de la barra superior navega aquí con ?q=texto
   const q = searchParams.get("q");
@@ -68,8 +71,9 @@ export default function Productos() {
     if (q !== null) setBusqueda(q);
   }, [q]);
 
-  const cargarProductos = useCallback(async () => {
-    setCargando(true);
+  // silencioso = true en la actualización automática: no muestra "Cargando..." ni vacía la tabla
+  const cargarProductos = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     try {
       let res;
       if (filtro === "con-stock") res = await productoService.obtenerConStock();
@@ -83,16 +87,20 @@ export default function Productos() {
       if (filtro === "stock-bajo") lista = lista.filter((p) => Number(p.stock) > 0);
       setProductos(lista);
     } catch (err) {
-      setProductos([]);
-      setAviso({ tipo: "error", texto: err.mensaje });
+      if (!silencioso) {
+        setProductos([]);
+        setAviso({ tipo: "error", texto: err.mensaje });
+      }
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
   }, [filtro]);
 
   useEffect(() => {
     cargarProductos();
   }, [cargarProductos]);
+  // Las existencias cambian con ventas, entradas y salidas hechas por otros usuarios
+  useAutoRefresh(cargarProductos);
 
   // Si esto falla, el catálogo sigue funcionando y la columna de proveedores muestra "—"
   const cargarRelaciones = useCallback(async () => {
@@ -128,7 +136,7 @@ export default function Productos() {
   const abrirModalNuevo = () => {
     setProductoEditando(null);
     setErrorModal("");
-    setForm({ ...FORM_VACIO, fecha_produccion: hoyISO() });
+    setForm(FORM_VACIO);
     setModalAbierto(true);
   };
 
@@ -142,8 +150,6 @@ export default function Productos() {
       costo_produccion: prod.costo_produccion ?? "",
       precio_venta: prod.precio_venta ?? "",
       iva: prod.iva ?? 0,
-      fecha_produccion: prod.fecha_produccion ? String(prod.fecha_produccion).slice(0, 10) : "",
-      fecha_vencimiento: prod.fecha_vencimiento ? String(prod.fecha_vencimiento).slice(0, 10) : "",
     });
     setModalAbierto(true);
   };
@@ -152,13 +158,9 @@ export default function Productos() {
     e.preventDefault();
     setErrorModal("");
 
-    if (form.fecha_produccion && form.fecha_vencimiento && form.fecha_vencimiento < form.fecha_produccion) {
-      setErrorModal("La fecha de vencimiento no puede ser anterior a la fecha de producción.");
-      return;
-    }
-
-    // El backend compara el código como texto (columna VARCHAR) y valida las fechas con ISO8601:
-    // por eso el código se envía como string y las fechas vacías simplemente no se envían.
+    // El backend compara el código como texto (columna VARCHAR): por eso se envía como string.
+    // Las fechas de producción y vencimiento ya no se escriben aquí: vienen del lote registrado
+    // en la entrada de mercancía, y el vencimiento se quita cuando el producto se agota.
     const payload = {
       codigo_producto: form.codigo_producto.trim(),
       nombre_producto: form.nombre_producto.trim(),
@@ -167,8 +169,6 @@ export default function Productos() {
       precio_venta: Number(form.precio_venta),
       iva: Number(form.iva) || 0,
     };
-    if (form.fecha_produccion) payload.fecha_produccion = form.fecha_produccion;
-    if (form.fecha_vencimiento) payload.fecha_vencimiento = form.fecha_vencimiento;
 
     setGuardando(true);
     try {
@@ -195,9 +195,13 @@ export default function Productos() {
     setEliminando(true);
     try {
       await productoService.eliminar(porEliminar.id_producto);
-      setAviso({ tipo: "success", texto: `Producto "${porEliminar.nombre_producto}" eliminado.` });
+      setAviso({
+        tipo: "success",
+        texto: `Producto "${porEliminar.nombre_producto}" ${Number(porEliminar.stock) <= 0 ? "retirado del catálogo" : "eliminado"}. Su historial de ventas se conserva.`,
+      });
       setPorEliminar(null);
       cargarProductos();
+      avisarCambioDeDatos();
     } catch (err) {
       setAviso({ tipo: "error", texto: err.mensaje || "No se pudo eliminar el producto." });
       setPorEliminar(null);
@@ -205,6 +209,23 @@ export default function Productos() {
       setEliminando(false);
     }
   };
+
+  const retirarAgotados = async () => {
+    setEliminando(true);
+    try {
+      const res = await productoService.retirarAgotados();
+      setAviso({ tipo: "success", texto: res?.message ?? "Productos agotados retirados." });
+      cargarProductos();
+      avisarCambioDeDatos();
+    } catch (err) {
+      setAviso({ tipo: "error", texto: err.mensaje || "No se pudieron retirar los productos agotados." });
+    } finally {
+      setEliminando(false);
+      setConfirmarRetiroMasivo(false);
+    }
+  };
+
+  const cantidadAgotados = productos.filter((p) => Number(p.stock) <= 0).length;
 
   const productosFiltrados = productos.filter((p) => {
     const term = busqueda.trim().toLowerCase();
@@ -222,11 +243,17 @@ export default function Productos() {
     <div className="space-y-5 p-4 sm:p-6">
       <PageHeader
         title="Gestión de productos"
-        description="Catálogo de referencias, precios, IVA y fechas de caducidad."
+        description="Catálogo de referencias, precios, IVA y vencimientos (los agotados no muestran fecha)."
       >
-        <button onClick={cargarProductos} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
+        <button onClick={() => cargarProductos()} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
           <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
         </button>
+        {puedeRetirar && filtro === "sin-stock" && cantidadAgotados > 0 && (
+          <button onClick={() => setConfirmarRetiroMasivo(true)} className="btn btn-outline">
+            <Archive size={16} />
+            Retirar agotados ({cantidadAgotados})
+          </button>
+        )}
         <button onClick={abrirModalNuevo} className="btn btn-primary">
           <Plus size={16} />
           Nuevo producto
@@ -317,7 +344,11 @@ export default function Productos() {
                         <EstadoBadge estado={estadoStock(p)} />
                       </td>
                       <td className="px-5 py-3.5 text-xs">
-                        {p.fecha_vencimiento ? (
+                        {Number(p.stock) <= 0 ? (
+                          <span className="text-[11px] text-muted-foreground" title="Al agotarse, el producto deja de tener fecha de vencimiento">
+                            Sin existencias
+                          </span>
+                        ) : p.fecha_vencimiento ? (
                           <div className="flex flex-col items-start gap-1">
                             <span className="text-muted-foreground">{fmtFecha(p.fecha_vencimiento)}</span>
                             {dias !== null && dias < 0 && <Badge variant="danger">Vencido</Badge>}
@@ -361,9 +392,15 @@ export default function Productos() {
                           <button onClick={() => abrirModalEditar(p)} className="btn-icon hover:text-primary" title="Editar" aria-label={`Editar ${p.nombre_producto}`}>
                             <Pencil size={15} />
                           </button>
-                          <button onClick={() => setPorEliminar(p)} className="btn-icon hover:text-destructive" title="Eliminar" aria-label={`Eliminar ${p.nombre_producto}`}>
-                            <Trash2 size={15} />
-                          </button>
+                          {Number(p.stock) <= 0 && puedeRetirar ? (
+                            <button onClick={() => setPorEliminar(p)} className="btn-icon hover:text-destructive" title="Retirar del catálogo" aria-label={`Retirar ${p.nombre_producto}`}>
+                              <Archive size={15} />
+                            </button>
+                          ) : (
+                            <button onClick={() => setPorEliminar(p)} className="btn-icon hover:text-destructive" title="Eliminar" aria-label={`Eliminar ${p.nombre_producto}`}>
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -420,23 +457,13 @@ export default function Productos() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label" htmlFor="p-fprod">Fecha de producción</label>
-              <input id="p-fprod" type="date" className="input" value={form.fecha_produccion} onChange={set("fecha_produccion")} />
-            </div>
-            <div>
-              <label className="label" htmlFor="p-fven">Fecha de vencimiento</label>
-              <input id="p-fven" type="date" min={form.fecha_produccion || undefined} className="input" value={form.fecha_vencimiento} onChange={set("fecha_vencimiento")} />
-            </div>
-          </div>
-
           <div className="flex items-start gap-2 rounded-xl border border-info-border bg-accent px-3 py-2.5 text-xs text-accent-foreground">
             <Info size={14} className="mt-0.5 flex-shrink-0" />
             <p>
               {productoEditando
                 ? `Existencias actuales: ${productoEditando.stock} unidades. El stock se modifica con entradas y salidas de mercancía, no desde aquí.`
                 : "El producto se crea con 0 unidades. Las existencias se cargan con una entrada de mercancía (con su lote y vencimiento)."}
+              {" "}La fecha de vencimiento mostrada es la del lote más próximo a vencer y se quita cuando el producto se agota.
             </p>
           </div>
 
@@ -459,11 +486,22 @@ export default function Productos() {
 
       <ConfirmDialog
         open={!!porEliminar}
-        titulo="Eliminar producto"
-        mensaje={`¿Seguro que deseas eliminar "${porEliminar?.nombre_producto}"? Dejará de aparecer en el catálogo.`}
+        titulo={Number(porEliminar?.stock) <= 0 ? "Retirar producto agotado" : "Eliminar producto"}
+        mensaje={`¿Seguro que deseas ${Number(porEliminar?.stock) <= 0 ? "retirar" : "eliminar"} "${porEliminar?.nombre_producto}"? Dejará de aparecer en el catálogo, pero su historial de ventas y movimientos se conserva.`}
+        textoConfirmar={Number(porEliminar?.stock) <= 0 ? "Retirar" : "Eliminar"}
         cargando={eliminando}
         onConfirm={confirmarEliminar}
         onCancel={() => setPorEliminar(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmarRetiroMasivo}
+        titulo="Retirar productos agotados"
+        mensaje={`Se retirarán del catálogo ${cantidadAgotados} producto(s) sin existencias. Su historial de ventas y movimientos se conserva.`}
+        textoConfirmar="Retirar todos"
+        cargando={eliminando}
+        onConfirm={retirarAgotados}
+        onCancel={() => setConfirmarRetiroMasivo(false)}
       />
     </div>
   );

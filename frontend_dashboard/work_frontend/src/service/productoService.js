@@ -14,6 +14,8 @@ const productoService = {
   crear: (datos) => axiosClient.post("/productos", datos),
   actualizar: (id, datos) => axiosClient.put(`/productos/${id}`, datos),
   eliminar: (id) => axiosClient.delete(`/productos/${id}`),
+  // Retira (soft delete) todos los productos agotados; conservan su historial de ventas
+  retirarAgotados: () => axiosClient.post("/productos/retirar-agotados"),
 };
 
 export default productoService;

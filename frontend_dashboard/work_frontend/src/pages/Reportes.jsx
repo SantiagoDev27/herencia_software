@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import { Download, RefreshCw, Package, AlertTriangle, CheckCircle, XCircle, Clock } from "lucide-react";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { Download, RefreshCw, Package, AlertTriangle, CheckCircle, XCircle, Clock, TrendingUp } from "lucide-react";
+import ReporteVentas from "../components/reportes/ReporteVentas";
 import reporteService from "../service/reporteService";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Notice } from "../components/ui/Notice";
 import { EstadoBadge } from "../components/ui/Badge";
 import { fmtCOP, UMBRAL_STOCK_BAJO, DIAS_POR_VENCER } from "../lib/format";
 
-export default function Reportes() {
+function ReporteInventario() {
   const [reporte, setReporte] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [descargandoPdf, setDescargandoPdf] = useState(false);
@@ -17,22 +19,25 @@ export default function Reportes() {
   const [dias, setDias] = useState(DIAS_POR_VENCER);
   const [aplicados, setAplicados] = useState({ umbral: UMBRAL_STOCK_BAJO, dias: DIAS_POR_VENCER });
 
-  const cargarReporte = useCallback(async () => {
-    setCargando(true);
+  const cargarReporte = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     try {
       const res = await reporteService.obtenerReporteInventario(aplicados);
       setReporte(res?.data ?? null);
     } catch (err) {
-      setReporte(null);
-      setAviso({ tipo: "error", texto: err.mensaje });
+      if (!silencioso) {
+        setReporte(null);
+        setAviso({ tipo: "error", texto: err.mensaje });
+      }
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
   }, [aplicados]);
 
   useEffect(() => {
     cargarReporte();
   }, [cargarReporte]);
+  useAutoRefresh(cargarReporte);
 
   const aplicarParametros = (e) => {
     e.preventDefault();
@@ -62,12 +67,12 @@ export default function Reportes() {
   ];
 
   return (
-    <div className="space-y-5 p-4 sm:p-6">
+    <div className="space-y-5">
       <PageHeader
-        title="Reportes de inventario"
+        title="Reporte de inventario"
         description="Valoración del inventario, rentabilidad estimada e informe imprimible."
       >
-        <button onClick={cargarReporte} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
+        <button onClick={() => cargarReporte()} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
           <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
         </button>
         <button onClick={descargarPDF} disabled={descargandoPdf} className="btn btn-primary">
@@ -172,6 +177,34 @@ export default function Reportes() {
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Pantalla de reportes: ventas (Finanzas) e inventario
+export default function Reportes() {
+  const [tab, setTab] = useState("ventas");
+  return (
+    <div className="space-y-5 p-4 sm:p-6">
+      <div className="flex gap-1.5" role="tablist">
+        {[
+          ["ventas", "Reporte general de ventas", TrendingUp],
+          ["inventario", "Reporte de inventario", Package],
+        ].map(([id, label, Icono]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-colors ${
+              tab === id ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            <Icono size={14} /> {label}
+          </button>
+        ))}
+      </div>
+      {tab === "ventas" ? <ReporteVentas /> : <ReporteInventario />}
     </div>
   );
 }

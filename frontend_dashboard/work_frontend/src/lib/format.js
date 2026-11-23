@@ -100,3 +100,52 @@ export const descargarBlob = (blob, nombreArchivo) => {
 // Valores grandes para ejes de gráficos: 1.200.000 -> "$1,2 M"
 export const fmtCompacto = (n) =>
   new Intl.NumberFormat("es-CO", { notation: "compact", maximumFractionDigits: 1 }).format(Number(n) || 0);
+
+// Fecha local "YYYY-MM-DD" de hace `dias` días
+export const haceDiasISO = (dias) => {
+  const d = new Date();
+  d.setDate(d.getDate() - dias);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+// Periodos para las pantallas con historial (ventas, movimientos, reportes).
+// Para que las listas no crezcan sin límite, por defecto solo se muestra el último mes.
+export const PERIODOS = [
+  { id: "mes", label: "Último mes", dias: 30 },
+  { id: "trimestre", label: "Últimos 3 meses", dias: 90 },
+  { id: "anio", label: "Último año", dias: 365 },
+  { id: "todo", label: "Todo", dias: null },
+];
+export const PERIODO_DEFECTO = "mes";
+
+// { fechaInicio, fechaFin } del periodo (fechaInicio null = sin límite)
+export const rangoDePeriodo = (idPeriodo) => {
+  const periodo = PERIODOS.find((p) => p.id === idPeriodo) ?? PERIODOS[0];
+  return { fechaInicio: periodo.dias ? haceDiasISO(periodo.dias) : null, fechaFin: hoyISO() };
+};
+
+// ¿La fecha está dentro del periodo? (para filtrar listas que el backend devuelve completas)
+export const dentroDePeriodo = (fecha, idPeriodo) => {
+  const { fechaInicio } = rangoDePeriodo(idPeriodo);
+  if (!fechaInicio) return true;
+  const f = String(fecha ?? "").slice(0, 10);
+  return f >= fechaInicio;
+};
+
+// Exporta filas a CSV (Excel lo abre directamente). filas: arreglo de arreglos; la primera es el encabezado.
+export const exportarCSV = (filas, nombreArchivo) => {
+  const celda = (v) => {
+    const texto = v === null || v === undefined ? "" : String(v);
+    return /[";\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+  };
+  // ";" como separador y BOM UTF-8: así Excel en español respeta columnas y tildes
+  const contenido = "\uFEFF" + filas.map((f) => f.map(celda).join(";")).join("\r\n");
+  const url = window.URL.createObjectURL(new Blob([contenido], { type: "text/csv;charset=utf-8" }));
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombreArchivo;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+};

@@ -1,7 +1,8 @@
 import sequelize from "../configuration/database.js";
 import DetSalidaRepository from "../repositories/DetlSalida.repository.js";
 import SalidaMercanciaRepository from "../repositories/SalidaMercancia.repository.js";
-import ProductoRepository from "../repositories/Productorepositories.js";
+import ProductoRepository from "../repositories/ProductoRepositories.js";
+import LoteRepository from "../repositories/LoteRepository.js";
 
 class SalidaMercanciaServices {
 
@@ -69,12 +70,26 @@ class SalidaMercanciaServices {
                     total,
                 }, transaction);
 
+                // La salida también descuenta de los lotes (FEFO) para que stock y lotes no se desfasen.
+                // Si parte del stock no tiene lote (inventario anterior a los lotes), solo se descuenta del total.
+                const stockEnLotes = await LoteRepository.obtenerStockTotalPorProducto(producto.id_producto);
+                const desdeLotes = Math.min(stockEnLotes, Number(detalle.cantidad));
+                if (desdeLotes > 0) {
+                    await LoteRepository.consumirStockFEFO(producto.id_producto, desdeLotes, transaction);
+                }
+
                 await ProductoRepository.decrementarStock(
                     producto.id_producto,
                     detalle.cantidad,
                     transaction
                 );
             }
+
+            // Agotado -> sin fecha de vencimiento; si quedan lotes -> la del más próximo
+            await ProductoRepository.sincronizarVencimiento(
+                detallesSalida.map((d) => d.fk_det_salida_id_producto),
+                transaction
+            );
 
             const totales = await DetSalidaRepository.calcularTotalesSalida(salidaCreada.id_salida, transaction);
             await SalidaMercanciaRepository.actualizarTotalesSalida(salidaCreada.id_salida, totales, transaction);

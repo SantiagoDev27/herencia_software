@@ -3,10 +3,11 @@ import { Plus, Search, RefreshCw, Download, Eye, X, ChevronLeft, ChevronRight, I
 import ventaService from "../service/ventaService";
 import productoService from "../service/productoService";
 import { useAuth } from "../context/AuthContext";
+import { useAutoRefresh, avisarCambioDeDatos } from "../hooks/useAutoRefresh";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Modal } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
-import { fmtCOP, fmtFecha, toList, hoyISO } from "../lib/format";
+import { fmtCOP, fmtFecha, toList, hoyISO, PERIODOS, PERIODO_DEFECTO, rangoDePeriodo } from "../lib/format";
 
 const POR_PAGINA = 10;
 
@@ -15,13 +16,15 @@ const nombreDe = (persona, prefijo) =>
 
 export default function Ventas() {
   const { usuario, puede } = useAuth();
-  // Finanzas consulta ventas y descarga facturas; solo Administrador y Empleado registran ventas
+  // Finanzas consulta ventas y descarga facturas; solo Administrador y Vendedor registran ventas
   const puedeVender = puede("registrarVenta");
   const [ventas, setVentas] = useState([]);
   const [paginacion, setPaginacion] = useState({ total: 0, paginaActual: 1, totalPaginas: 1 });
   const [pagina, setPagina] = useState(1);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
+  // Para que la lista no crezca sin control, por defecto se muestran solo las ventas del último mes
+  const [periodo, setPeriodo] = useState(PERIODO_DEFECTO);
   const [aviso, setAviso] = useState(null);
   const [descargandoId, setDescargandoId] = useState(null);
 
@@ -37,10 +40,15 @@ export default function Ventas() {
   const [detalle, setDetalle] = useState(null); // { venta, detalles }
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
 
-  const cargarVentas = useCallback(async () => {
-    setCargando(true);
+  const cargarVentas = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     try {
-      const res = await ventaService.listarVentas({ pagina, limite: POR_PAGINA });
+      const { fechaInicio, fechaFin } = rangoDePeriodo(periodo);
+      const res = await ventaService.listarVentas({
+        pagina,
+        limite: POR_PAGINA,
+        ...(fechaInicio ? { fechaInicio, fechaFin } : {}),
+      });
       setVentas(toList(res, "ventas"));
       setPaginacion({
         total: res?.data?.total ?? 0,
@@ -48,16 +56,25 @@ export default function Ventas() {
         totalPaginas: Math.max(res?.data?.totalPaginas ?? 1, 1),
       });
     } catch (err) {
-      setVentas([]);
-      setAviso({ tipo: "error", texto: err.mensaje });
+      if (!silencioso) {
+        setVentas([]);
+        setAviso({ tipo: "error", texto: err.mensaje });
+      }
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
-  }, [pagina]);
+  }, [pagina, periodo]);
 
   useEffect(() => {
     cargarVentas();
   }, [cargarVentas]);
+  // Ventas registradas por otros vendedores aparecen sin recargar la página
+  useAutoRefresh(cargarVentas);
+
+  const cambiarPeriodo = (nuevo) => {
+    setPeriodo(nuevo);
+    setPagina(1);
+  };
 
   // ---- Nueva venta ---------------------------------------------------------------
   const mapaProductos = useMemo(() => new Map(productos.map((p) => [p.id_producto, p])), [productos]);
@@ -140,6 +157,7 @@ export default function Ventas() {
       setAviso({ tipo: "success", texto: `Venta ${res?.data?.venta?.numero_venta ?? ""} registrada. El stock se descontó por lote (FEFO).` });
       if (pagina === 1) cargarVentas();
       else setPagina(1);
+      avisarCambioDeDatos();
     } catch (err) {
       setErrorModal(err.mensaje || "Error al registrar la venta.");
     } finally {
@@ -183,7 +201,7 @@ export default function Ventas() {
         title="Ventas y facturación"
         description="Registro de ventas y generación de facturas en PDF."
       >
-        <button onClick={cargarVentas} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
+        <button onClick={() => cargarVentas()} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
           <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
         </button>
         {puedeVender && (
@@ -196,7 +214,8 @@ export default function Ventas() {
 
       <Notice aviso={aviso} onClose={() => setAviso(null)} />
 
-      <div className="card flex max-w-md items-center gap-2 p-3">
+      <div className="card flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex w-full items-center gap-2 md:max-w-md">
         <Search size={15} className="flex-shrink-0 text-muted-foreground" />
         <input
           type="text"
@@ -206,6 +225,20 @@ export default function Ventas() {
           aria-label="Filtrar ventas"
           className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto" role="group" aria-label="Periodo">
+          {PERIODOS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => cambiarPeriodo(p.id)}
+              className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                periodo === p.id ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tabla */}
@@ -217,6 +250,7 @@ export default function Ventas() {
                 <th className="px-5 py-3">N° factura</th>
                 <th className="px-5 py-3">Fecha</th>
                 <th className="px-5 py-3">Cliente</th>
+                <th className="px-5 py-3">Vendedor</th>
                 <th className="px-5 py-3 text-right">Subtotal</th>
                 <th className="px-5 py-3 text-right">IVA</th>
                 <th className="px-5 py-3 text-right">Total</th>
@@ -226,13 +260,15 @@ export default function Ventas() {
             <tbody className="divide-y divide-border">
               {cargando ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-xs text-muted-foreground">Cargando ventas...</td>
+                  <td colSpan={8} className="py-10 text-center text-xs text-muted-foreground">Cargando ventas...</td>
                 </tr>
               ) : ventasFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-xs text-muted-foreground">
+                  <td colSpan={8} className="py-10 text-center text-xs text-muted-foreground">
                     {ventas.length === 0
-                      ? 'No hay ventas registradas aún. Haz clic en "Nueva venta" para emitir la primera factura.'
+                      ? periodo === "todo"
+                        ? 'No hay ventas registradas aún. Haz clic en "Nueva venta" para emitir la primera factura.'
+                        : 'No hay ventas en este periodo. Elige "Todo" para ver el historial completo.'
                       : "Ninguna venta de esta página coincide con el filtro."}
                   </td>
                 </tr>
@@ -244,6 +280,7 @@ export default function Ventas() {
                     <td className="px-5 py-3.5 text-xs text-foreground">
                       {v.fk_venta_id_cliente ? `Cliente #${v.fk_venta_id_cliente}` : "Sin cliente"}
                     </td>
+                    <td className="px-5 py-3.5 text-xs text-muted-foreground">{nombreDe(v.usuario, "usuario") || "—"}</td>
                     <td className="px-5 py-3.5 text-right text-xs text-muted-foreground">{fmtCOP(v.subtotal)}</td>
                     <td className="px-5 py-3.5 text-right text-xs text-muted-foreground">{fmtCOP(v.iva)}</td>
                     <td className="px-5 py-3.5 text-right text-xs font-extrabold text-foreground">{fmtCOP(v.total)}</td>
@@ -273,7 +310,7 @@ export default function Ventas() {
         {/* Paginación (la hace el backend) */}
         <div className="flex items-center justify-between border-t border-border px-5 py-3 text-xs text-muted-foreground">
           <span>
-            {paginacion.total} {paginacion.total === 1 ? "venta" : "ventas"} · página {paginacion.paginaActual} de {paginacion.totalPaginas}
+            {paginacion.total} {paginacion.total === 1 ? "venta" : "ventas"} ({PERIODOS.find((p) => p.id === periodo)?.label.toLowerCase()}) · página {paginacion.paginaActual} de {paginacion.totalPaginas}
           </span>
           <div className="flex items-center gap-1.5">
             <button

@@ -9,7 +9,8 @@ import { useAuth } from "../context/AuthContext";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Modal } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
-import { fmtCOP, fmtFecha, toList, codigoAuto } from "../lib/format";
+import { fmtCOP, fmtFecha, toList, codigoAuto, PERIODOS, PERIODO_DEFECTO, rangoDePeriodo, dentroDePeriodo } from "../lib/format";
+import { avisarCambioDeDatos } from "../hooks/useAutoRefresh";
 
 // Cada cuánto se consultan de nuevo entradas, salidas y ventas sin que el usuario refresque
 const INTERVALO_ACTUALIZACION_MS = 10000;
@@ -32,7 +33,7 @@ const Chevron = ({ abierto }) => (abierto ? <ChevronDown size={15} /> : <Chevron
 
 export default function Movimientos() {
   const [searchParams, setSearchParams] = useSearchParams();
-  // Finanzas solo consulta; Administrador y Empleado registran entradas y salidas
+  // Finanzas solo consulta; Administrador y Vendedor registran entradas y salidas
   const { puede } = useAuth();
   const puedeRegistrar = puede("registrarMovimiento");
   const tabActiva = searchParams.get("tab") === "salidas" ? "salidas" : "ingresos";
@@ -42,6 +43,8 @@ export default function Movimientos() {
   const [salidas, setSalidas] = useState([]);
   const [ventas, setVentas] = useState([]);
   const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
+  // Por defecto solo se muestran los movimientos del último mes (las fechas antiguas se acumulan)
+  const [periodo, setPeriodo] = useState(PERIODO_DEFECTO);
   const [productos, setProductos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -70,7 +73,11 @@ export default function Movimientos() {
     const [resIng, resSal, resVen, resProd, resProv] = await Promise.allSettled([
       movimientoService.listarIngresos(),
       movimientoService.listarSalidas(),
-      ventaService.listarVentas({ pagina: 1, limite: 100 }),
+      ventaService.listarVentas({
+        pagina: 1,
+        limite: 500,
+        ...(rangoDePeriodo(periodo).fechaInicio ? rangoDePeriodo(periodo) : {}),
+      }),
       productoService.obtenerTodos(),
       proveedorService.obtenerTodos(),
     ]);
@@ -88,7 +95,7 @@ export default function Movimientos() {
     if (fallo && !silencioso) setAviso({ tipo: "error", texto: fallo.reason?.mensaje ?? "No se pudieron cargar los movimientos." });
     if (!fallo) setUltimaActualizacion(new Date());
     if (!silencioso) setCargando(false);
-  }, []);
+  }, [periodo]);
 
   // Carga inicial + actualización automática (solo con la pestaña del navegador visible)
   useEffect(() => {
@@ -138,8 +145,18 @@ export default function Movimientos() {
         total: d.total,
       })),
     }));
-    return [...bajas, ...vendidas].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-  }, [salidas, ventas]);
+    return [...bajas, ...vendidas]
+      .filter((m) => dentroDePeriodo(m.fecha, periodo))
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  }, [salidas, ventas, periodo]);
+
+  const ingresosVisibles = useMemo(
+    () =>
+      ingresos
+        .filter((i) => dentroDePeriodo(i.fecha, periodo))
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha)),
+    [ingresos, periodo]
+  );
 
   const alternarFila = (clave) =>
     setExpandidos((prev) => {
@@ -252,6 +269,7 @@ export default function Movimientos() {
       setAviso({ tipo: "success", texto: `Entrada ${payload.codigo_entrada} registrada: el stock y los lotes se actualizaron.` });
       cambiarTab("ingresos");
       cargarDatos();
+      avisarCambioDeDatos();
     } catch (err) {
       setErrorModal(err.mensaje || "Error al registrar la entrada de mercancía.");
     } finally {
@@ -312,6 +330,7 @@ export default function Movimientos() {
       setAviso({ tipo: "success", texto: `Salida ${payload.codigo_salida} registrada: el stock se descontó.` });
       cambiarTab("salidas");
       cargarDatos();
+      avisarCambioDeDatos();
     } catch (err) {
       setErrorModal(err.mensaje || "Error al registrar la salida de mercancía.");
     } finally {
@@ -353,7 +372,7 @@ export default function Movimientos() {
       {/* Pestañas */}
       <div className="flex items-center gap-1 border-b border-border" role="tablist">
         {[
-          { id: "ingresos", label: "Entradas de mercancía", total: ingresos.length, Icono: ArrowDownLeft },
+          { id: "ingresos", label: "Entradas de mercancía", total: ingresosVisibles.length, Icono: ArrowDownLeft },
           { id: "salidas", label: "Salidas y ventas", total: movimientosSalida.length, Icono: ArrowUpRight },
         ].map(({ id, label, total, Icono }) => (
           <button
@@ -367,6 +386,21 @@ export default function Movimientos() {
           >
             <Icono size={15} />
             {label} ({total})
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Periodo">
+        <span className="mr-1 text-xs font-bold text-muted-foreground">Mostrar:</span>
+        {PERIODOS.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setPeriodo(p.id)}
+            className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+              periodo === p.id ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            {p.label}
           </button>
         ))}
       </div>
@@ -389,10 +423,10 @@ export default function Movimientos() {
               <tbody className="divide-y divide-border">
                 {cargando ? (
                   <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">Cargando entradas...</td></tr>
-                ) : ingresos.length === 0 ? (
-                  <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No hay entradas de mercancía registradas todavía.</td></tr>
+                ) : ingresosVisibles.length === 0 ? (
+                  <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No hay entradas de mercancía en este periodo.</td></tr>
                 ) : (
-                  ingresos.map((ing) => {
+                  ingresosVisibles.map((ing) => {
                     const clave = `ing-${ing.id_entrada}`;
                     const abierto = expandidos.has(clave);
                     return (
@@ -463,7 +497,7 @@ export default function Movimientos() {
                 {cargando ? (
                   <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">Cargando salidas...</td></tr>
                 ) : movimientosSalida.length === 0 ? (
-                  <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No hay salidas ni ventas registradas todavía.</td></tr>
+                  <tr><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No hay salidas ni ventas en este periodo.</td></tr>
                 ) : (
                   movimientosSalida.map((sal) => {
                     const clave = sal.clave;

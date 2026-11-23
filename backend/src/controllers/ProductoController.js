@@ -52,6 +52,22 @@ class ProductoController {
     }
   }
 
+  // HU-INV-03: Retirar del catálogo todos los productos agotados
+  async retirarAgotados(req, res, next) {
+    try {
+      const retirados = await productoService.retirarAgotados();
+      return res.status(200).json({
+        success: true,
+        message: retirados.length
+          ? `${retirados.length} producto(s) agotado(s) retirado(s) del catálogo.`
+          : 'No hay productos agotados para retirar.',
+        data: retirados
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // ============================================
   // HU-INV-006: Consultar existencias
   // ============================================

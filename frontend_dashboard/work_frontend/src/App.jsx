@@ -9,6 +9,8 @@ import Proveedores from "./pages/Proveedores";
 import Movimientos from "./pages/Movimientos";
 import Ventas from "./pages/Ventas";
 import Reportes from "./pages/Reportes";
+import Usuarios from "./pages/Usuarios";
+import MiCuenta from "./pages/MiCuenta";
 import { NotFound } from "./pages/ComingSoon";
 import "./App.css";
 
@@ -20,7 +22,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<Dashboard />} />
-          {/* Cada módulo valida el rol (Administrador / Empleado / Finanzas) */}
+          {/* Cada módulo valida el rol (Administrador / Vendedor / Finanzas) */}
           <Route element={<RoleRoute permiso="productos" />}>
             <Route path="productos" element={<Productos />} />
           </Route>
@@ -36,6 +38,10 @@ function App() {
           <Route element={<RoleRoute permiso="reportes" />}>
             <Route path="reportes" element={<Reportes />} />
           </Route>
+          <Route element={<RoleRoute permiso="usuarios" />}>
+            <Route path="usuarios" element={<Usuarios />} />
+          </Route>
+          <Route path="cuenta" element={<MiCuenta />} />
 
           {/* Rutas anteriores que ahora se resuelven en las pantallas actuales */}
           <Route path="inventario" element={<Navigate to="/dashboard/productos" replace />} />

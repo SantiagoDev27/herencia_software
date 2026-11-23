@@ -71,6 +71,20 @@ const Producto = sequelize.define('Producto', {
   deletedAt: 'deleted_at'
 });
 
+// Regla de negocio: un producto agotado (stock <= 0) no muestra fecha de vencimiento.
+// La fecha del producto es la del lote con existencias más próximo a vencer; cuando se
+// agota, deja de tener sentido y se oculta en cualquier consulta (además, el repositorio
+// la deja en NULL en la base de datos al sincronizar, ver ProductoRepository.sincronizarVencimiento).
+Producto.addHook('afterFind', 'ocultarVencimientoAgotados', (resultado) => {
+  if (!resultado) return;
+  const lista = Array.isArray(resultado) ? resultado : [resultado];
+  for (const producto of lista) {
+    if (producto && typeof producto.getDataValue === 'function' && Number(producto.getDataValue('stock')) <= 0) {
+      producto.setDataValue('fecha_vencimiento', null);
+    }
+  }
+});
+
 // Relaciones: un producto pertenece a una categoria, una categoria tiene muchos productos
 Producto.belongsTo(Categoria, { foreignKey: 'fk_producto_id_categoria', as: 'categoria' });
 Categoria.hasMany(Producto, { foreignKey: 'fk_producto_id_categoria', as: 'productos' });

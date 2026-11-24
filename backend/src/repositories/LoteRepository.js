@@ -33,12 +33,16 @@ class LoteRepository {
         });
     }
 
-    // Lotes disponibles de un producto, ordenados FEFO (vence primero = sale primero)
-    async obtenerLotesDisponiblesFEFO(fk_lote_id_producto, transaction = null) {
+    // Lotes disponibles de un producto, ordenados FEFO (vence primero = sale primero).
+    // soloVigentes: descarta los lotes ya vencidos (vencen ANTES de hoy; el día del
+    // vencimiento todavía se pueden vender). Las ventas usan soloVigentes; las salidas
+    // de mercancía no, porque con ellas se dan de baja justamente los vencidos.
+    async obtenerLotesDisponiblesFEFO(fk_lote_id_producto, transaction = null, { soloVigentes = false } = {}) {
         return await Lote.findAll({
             where: {
                 fk_lote_id_producto,
-                cantidad_actual: { [Op.gt]: 0 }
+                cantidad_actual: { [Op.gt]: 0 },
+                ...(soloVigentes ? { fecha_vencimiento: { [Op.gte]: fechaLocalISO() } } : {})
             },
             order: [["fecha_vencimiento", "ASC"], ["id_lote", "ASC"]],
             transaction,
@@ -47,9 +51,12 @@ class LoteRepository {
     }
 
     // Suma el stock total disponible de un producto (a través de todos sus lotes)
-    async obtenerStockTotalPorProducto(fk_lote_id_producto, transaction = null) {
+    async obtenerStockTotalPorProducto(fk_lote_id_producto, transaction = null, { soloVigentes = false } = {}) {
         const resultado = await Lote.sum("cantidad_actual", {
-            where: { fk_lote_id_producto },
+            where: {
+                fk_lote_id_producto,
+                ...(soloVigentes ? { fecha_vencimiento: { [Op.gte]: fechaLocalISO() } } : {})
+            },
             transaction
         });
         return resultado || 0;
@@ -76,8 +83,8 @@ class LoteRepository {
     // ⭐ Núcleo FEFO: consume "cantidadRequerida" unidades de un producto,
     // repartiendo entre los lotes disponibles empezando por el que vence antes.
     // Devuelve el detalle de qué lotes se usaron y cuánto se tomó de cada uno.
-    async consumirStockFEFO(fk_lote_id_producto, cantidadRequerida, transaction) {
-        const lotesDisponibles = await this.obtenerLotesDisponiblesFEFO(fk_lote_id_producto, transaction);
+    async consumirStockFEFO(fk_lote_id_producto, cantidadRequerida, transaction, { soloVigentes = false } = {}) {
+        const lotesDisponibles = await this.obtenerLotesDisponiblesFEFO(fk_lote_id_producto, transaction, { soloVigentes });
 
         const stockTotal = lotesDisponibles.reduce((acc, lote) => acc + lote.cantidad_actual, 0);
 

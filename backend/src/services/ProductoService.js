@@ -1,6 +1,26 @@
 import productoRepository from '../repositories/ProductoRepositories.js';
 import categoriaRepository from '../repositories/CategoriaRepositories.js';
 import AppError from '../utils/AppError.js';
+import { Op, fn, col } from 'sequelize';
+import Lote from '../models/loteModel.js';
+import { fechaLocalISO } from '../utils/fechas.js';
+
+// Agrega a cada producto "stock_vendible": unidades en lotes que no han vencido.
+// Es lo que realmente se puede vender (las ventas no toman lotes vencidos).
+async function conStockVendible(productos) {
+  const lista = Array.isArray(productos) ? productos : [productos];
+  const ids = lista.filter(Boolean).map((p) => p.id_producto);
+  if (!ids.length) return productos;
+  const filas = await Lote.findAll({
+    attributes: ['fk_lote_id_producto', [fn('SUM', col('cantidad_actual')), 'vigente']],
+    where: { fk_lote_id_producto: { [Op.in]: ids }, cantidad_actual: { [Op.gt]: 0 }, fecha_vencimiento: { [Op.gte]: fechaLocalISO() } },
+    group: ['fk_lote_id_producto'],
+    raw: true,
+  });
+  const vigentes = new Map(filas.map((f) => [Number(f.fk_lote_id_producto), Number(f.vigente) || 0]));
+  for (const p of lista.filter(Boolean)) p.setDataValue('stock_vendible', vigentes.get(Number(p.id_producto)) ?? 0);
+  return productos;
+}
 class ProductoService {
   // HU-INV-001: Registrar producto
   async registrarProducto(datos) {
@@ -130,10 +150,10 @@ class ProductoService {
     return await productoRepository.obtenerPorCodigo(codigo_producto);
   }
   async obtenerTodos() {
-    return await productoRepository.obtenerTodos();
+    return await conStockVendible(await productoRepository.obtenerTodos());
   }
   async obtenerProductosConStock() {
-    return await productoRepository.obtenerProductosConStock();
+    return await conStockVendible(await productoRepository.obtenerProductosConStock());
   }
   async obtenerProductosSinStock() {
     return await productoRepository.obtenerProductosSinStock();

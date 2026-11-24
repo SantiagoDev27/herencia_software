@@ -115,7 +115,10 @@ export default function Ventas() {
     setModalVenta(true);
     try {
       cargarCatalogos();
-      const lista = toList(await productoService.obtenerConStock());
+      // Solo lo vendible: los lotes vencidos no cuentan (el backend tampoco los vende)
+      const lista = toList(await productoService.obtenerConStock())
+        .map((p) => ({ ...p, stock: Number(p.stock_vendible ?? p.stock) }))
+        .filter((p) => p.stock > 0);
       setProductos(lista);
       if (lista.length > 0) setItems([{ id_producto: lista[0].id_producto, cantidad: 1 }]);
     } catch (err) {
@@ -138,7 +141,7 @@ export default function Ventas() {
       cargarCatalogos();
       const enVenta = new Map(d.detalles.map((x) => [x.fk_det_venta_id_producto, Number(x.cantidad)]));
       const lista = toList(await productoService.obtenerTodos())
-        .map((p) => ({ ...p, stock: Number(p.stock) + (enVenta.get(p.id_producto) ?? 0) }))
+        .map((p) => ({ ...p, stock: Number(p.stock_vendible ?? p.stock) + (enVenta.get(p.id_producto) ?? 0) }))
         .filter((p) => p.stock > 0);
       setProductos(lista);
     } catch (err) {

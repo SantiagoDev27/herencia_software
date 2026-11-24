@@ -64,9 +64,12 @@ class VentaService {
             const producto = await ProductoRepository.obtenerPorIdSimple(fk_det_venta_id_producto, { transaction, lock: transaction.LOCK.UPDATE });
             if (!producto) throw new AppError(`Producto con id ${fk_det_venta_id_producto} no existe`, 404);
 
-            const disponible = await LoteRepository.obtenerStockTotalPorProducto(fk_det_venta_id_producto, transaction);
+            // Solo cuentan los lotes vigentes: un producto vencido no se puede vender
+            const disponible = await LoteRepository.obtenerStockTotalPorProducto(fk_det_venta_id_producto, transaction, { soloVigentes: true });
             if (disponible < cantidad) {
-                throw new AppError(`Stock insuficiente para "${producto.nombre_producto}". Disponible: ${disponible}, solicitado: ${cantidad}`, 400);
+                const vencidas = (await LoteRepository.obtenerStockTotalPorProducto(fk_det_venta_id_producto, transaction)) - disponible;
+                const nota = vencidas > 0 ? ` (${vencidas} unidad${vencidas === 1 ? "" : "es"} en lotes vencidos no se pueden vender; dalas de baja con una salida de mercancía)` : "";
+                throw new AppError(`Stock insuficiente para "${producto.nombre_producto}". Disponible: ${disponible}, solicitado: ${cantidad}${nota}`, 400);
             }
 
             const precio = Number(producto.precio_venta);
@@ -84,7 +87,7 @@ class VentaService {
     async _registrarLineas(id_venta, lineas, transaction) {
         for (const linea of lineas) {
             const det = await DetVentaRepository.creardatos({ ...linea, fk_det_venta_id_venta: id_venta }, transaction);
-            const consumo = await LoteRepository.consumirStockFEFO(linea.fk_det_venta_id_producto, linea.cantidad, transaction);
+            const consumo = await LoteRepository.consumirStockFEFO(linea.fk_det_venta_id_producto, linea.cantidad, transaction, { soloVigentes: true });
             await DetVentaLoteRepository.crearVarios(consumo.map((c) => ({
                 fk_det_venta_lote_id_detalleventa: det.id_detalleventa,
                 fk_det_venta_lote_id_lote: c.id_lote,

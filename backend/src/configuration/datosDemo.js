@@ -1,23 +1,39 @@
 /**
- * Carga el catálogo real de Herencia de Papá y simula 15 días de operación.
- *
- *   npm run simular            -> catálogo + 15 días que terminan hoy
- *   npm run simular -- --dias=30 --semilla=7
- *   npm run simular -- --solo-catalogo
- *   npm run simular -- --forzar   (vuelve a simular aunque ya exista una simulación)
+ * Datos de demostración de Herencia de Papá: el catálogo real (Instagram) y 15 días
+ * de operación simulada. Se cargan solos al iniciar el backend (npm run dev / npm start)
+ * la primera vez; en los siguientes arranques no hacen nada. Para no cargarlos, poner
+ * DATOS_DEMO=false en el .env.
  *
  * Todo pasa por los mismos servicios que usa la aplicación (órdenes de compra, recepción
  * con lotes, ventas FEFO, anulaciones, devoluciones, salidas, movimientos contables),
  * así que inventario, lotes, contabilidad y auditoría quedan coherentes entre sí.
- * Para fechar cada operación en su día se adelanta el reloj del proceso (solo de este
- * script) al momento simulado; la base de datos no se toca de otra forma.
+ * Para fechar cada operación en su día se adelanta el reloj del proceso solo mientras
+ * se cargan los datos (antes de que el servidor empiece a atender).
  */
-import dotenv from "dotenv";
-dotenv.config();
+import { Op } from "sequelize";
+import "../models/associations-ingreso.js";
+import "../models/associations-negocio.js";
+import Categoria from "../models/CategoriesModels.js";
+import Producto from "../models/ProductModels.js";
+import Proveedor from "../models/ProovedorModel.js";
+import Cliente from "../models/clienteModel.js";
+import Usuario from "../models/UsuariosModels.js";
+import Lote from "../models/loteModel.js";
+import ProductoProveedor from "../models/Producto-ProovedorModel.js";
+import { OrdenCompra, EvaluacionProveedor, CuentaContable, MetodoPago } from "../models/NegocioModels.js";
+import ProductoService from "../services/ProductoService.js";
+import ProveedorService from "../services/ProveedorService.js";
+import ClienteService from "../services/ClienteService.js";
+import OrdenCompraService from "../services/OrdenCompraService.js";
+import VentaService from "../services/VentaService.js";
+import SalidaMercanciaServices from "../services/SalidaMercanciaServices.js";
+import ContabilidadService from "../services/ContabilidadService.js";
+import AuditoriaRepository from "../repositories/AuditoriaRepository.js";
 
 // ---------------------------------------------------------------------------
-// Reloj simulado: new Date() y Date.now() devuelven el instante simulado (+ el
-// tiempo real transcurrido, para que el pool de conexiones siga funcionando).
+// Reloj simulado: mientras se cargan los datos, new Date() y Date.now() devuelven el
+// instante simulado (+ el tiempo real transcurrido, para que el pool de conexiones
+// siga funcionando). Al terminar se devuelve el reloj real.
 // ---------------------------------------------------------------------------
 const RealDate = Date;
 let desfase = 0;
@@ -30,50 +46,19 @@ class RelojSimulado extends RealDate {
         return RealDate.now() + desfase;
     }
 }
-globalThis.Date = RelojSimulado;
-const ponerReloj = (fecha) => { desfase = fecha.getTime() - RealDate.now(); };
-const restaurarReloj = () => { desfase = 0; };
-
-// Los módulos se importan después de instalar el reloj
-const { default: sequelize } = await import("../configuration/database.js");
-await import("../models/associations-ingreso.js");
-await import("../models/associations-negocio.js");
-const { prepararTablaProveedorProducto } = await import("../configuration/esquemaProveedorProducto.js");
-const { prepararEsquemaSeguridad } = await import("../configuration/esquemaSeguridad.js");
-const { prepararEsquemaNegocio } = await import("../configuration/esquemaNegocio.js");
-const { ajustarModelosAlEsquema } = await import("../configuration/esquemaModelos.js");
-const { default: ProductoProveedor } = await import("../models/Producto-ProovedorModel.js");
-const { default: Categoria } = await import("../models/CategoriesModels.js");
-const { default: Producto } = await import("../models/ProductModels.js");
-const { default: Proveedor } = await import("../models/ProovedorModel.js");
-const { default: Cliente } = await import("../models/clienteModel.js");
-const { default: Usuario } = await import("../models/UsuariosModels.js");
-const { default: Lote } = await import("../models/loteModel.js");
-const { OrdenCompra, EvaluacionProveedor, CuentaContable, MetodoPago } = await import("../models/NegocioModels.js");
-const { default: ProductoService } = await import("../services/ProductoService.js");
-const { default: ProveedorService } = await import("../services/ProveedorService.js");
-const { default: ClienteService } = await import("../services/ClienteService.js");
-const { default: OrdenCompraService } = await import("../services/OrdenCompraService.js");
-const { default: VentaService } = await import("../services/VentaService.js");
-const { default: SalidaMercanciaServices } = await import("../services/SalidaMercanciaServices.js");
-const { default: ContabilidadService } = await import("../services/ContabilidadService.js");
-const { default: AuditoriaRepository } = await import("../repositories/AuditoriaRepository.js");
-const { Op } = await import("sequelize");
-
-// ---------------------------------------------------------------------------
-// Parámetros
-// ---------------------------------------------------------------------------
-const arg = (nombre, defecto) => {
-    const a = process.argv.find((x) => x.startsWith(`--${nombre}=`));
-    return a ? a.split("=")[1] : defecto;
+const ponerReloj = (fecha) => {
+    globalThis.Date = RelojSimulado;
+    desfase = fecha.getTime() - RealDate.now();
 };
-const DIAS = Number(arg("dias", 15));
-const SOLO_CATALOGO = process.argv.includes("--solo-catalogo");
-const FORZAR = process.argv.includes("--forzar");
+const restaurarReloj = () => {
+    desfase = 0;
+    globalThis.Date = RealDate;
+};
+
 const MARCA = "[simulación]";
 
 // Generador pseudoaleatorio con semilla (misma semilla = misma simulación)
-let semilla = Number(arg("semilla", 2010)) >>> 0;
+let semilla = 2010;
 const azar = () => {
     semilla = (semilla + 0x6d2b79f5) >>> 0;
     let t = semilla;
@@ -160,15 +145,7 @@ const CLIENTES = [
 // Preparación
 // ---------------------------------------------------------------------------
 const log = (...m) => console.log(...m);
-const resumen = { ordenes: 0, recibidas: 0, canceladas: 0, ventas: 0, anuladas: 0, editadas: 0, devoluciones: 0, bajas: 0, egresos: 0, ingresos: 0, evaluaciones: 0, ventasValor: 0, sinStock: 0 };
-
-async function prepararEsquema() {
-    await sequelize.authenticate();
-    try { await prepararTablaProveedorProducto(sequelize, ProductoProveedor); } catch (e) { log("⚠️", e.message); }
-    try { await prepararEsquemaSeguridad(sequelize); } catch (e) { log("⚠️", e.message); }
-    try { await prepararEsquemaNegocio(sequelize); } catch (e) { log("⚠️", e.message); }
-    try { await ajustarModelosAlEsquema(sequelize); } catch (e) { log("⚠️", e.message); }
-}
+let resumen = { ordenes: 0, recibidas: 0, canceladas: 0, ventas: 0, anuladas: 0, editadas: 0, devoluciones: 0, bajas: 0, egresos: 0, ingresos: 0, evaluaciones: 0, ventasValor: 0, sinStock: 0 };
 
 async function cargarCatalogo(diaAlta) {
     ponerReloj(enHora(diaAlta, 7, 0));
@@ -227,7 +204,7 @@ async function usuariosDelSistema() {
     const activos = await Usuario.findAll({ order: [["idusuario", "ASC"]] });
     const porRol = (rol) => activos.filter((u) => Number(u.fk_usuario_id_rol) === rol);
     const admin = porRol(1)[0];
-    if (!admin) throw new Error("No hay un usuario administrador. Ejecuta primero: node src/scrips/seedUsuario.js");
+    if (!admin) throw new Error("No hay un usuario administrador todavía (node src/scrips/seedUsuario.js); se cargarán en el próximo arranque.");
     const vendedores = porRol(2).length ? porRol(2) : [admin];
     const finanzas = porRol(3)[0] || admin;
     return { admin, vendedores, finanzas };
@@ -511,56 +488,44 @@ async function movimientosDelDia(dia, ctx, indice) {
 }
 
 // ---------------------------------------------------------------------------
-async function main() {
-    await prepararEsquema();
-    const hoy = new RealDate();
-    const inicio = sumarDias(new RealDate(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()), -(DIAS - 1));
-
-    const usuarios = await usuariosDelSistema();
-    const catalogo = await cargarCatalogo(inicio);
-    if (SOLO_CATALOGO) return;
-
+export async function cargarDatosDemo({ dias = 15, semillaInicial = 2010 } = {}) {
     const previa = await OrdenCompra.count({ where: { observacion: { [Op.like]: `${MARCA}%` } } });
-    if (previa && !FORZAR) {
-        log(`ℹ️  Ya existe una simulación (${previa} órdenes de compra marcadas). Usa --forzar para agregar otra.`);
-        return;
-    }
+    if (previa) return null; // ya se cargaron en un arranque anterior
 
-    const ctx = { ...catalogo, usuarios, metodos: await metodos(), porRecibir: [], ventasPorDia: {}, bajas: 0 };
-    log(`🗓️  Simulando del ${iso(inicio)} al ${iso(hoy)} (${DIAS} días)...`);
+    semilla = semillaInicial >>> 0;
+    resumen = { ordenes: 0, recibidas: 0, canceladas: 0, ventas: 0, anuladas: 0, editadas: 0, devoluciones: 0, bajas: 0, egresos: 0, ingresos: 0, evaluaciones: 0, ventasValor: 0, sinStock: 0 };
+    const hoy = new RealDate();
+    const inicio = sumarDias(new RealDate(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()), -(dias - 1));
 
-    for (let i = 1; i <= DIAS; i++) {
-        const dia = sumarDias(inicio, i - 1);
-        if (i === 1) {
-            await revisarReposicion(dia, ctx, { inicial: true });
-            await recibirOrdenes(dia, ctx);
-        } else {
-            await darDeBajaVencidos(dia, ctx);
-            await recibirOrdenes(dia, ctx);
-            await revisarReposicion(dia, ctx, { cancelarUna: i === 5 });
+    try {
+        const usuarios = await usuariosDelSistema();
+        if (!usuarios) return null;
+        log(`🍊 Cargando datos de demostración: catálogo y ${dias} días de operación (${iso(inicio)} a ${iso(hoy)})...`);
+        const catalogo = await cargarCatalogo(inicio);
+        const ctx = { ...catalogo, usuarios, metodos: await metodos(), porRecibir: [], ventasPorDia: {}, bajas: 0 };
+
+        for (let i = 1; i <= dias; i++) {
+            const dia = sumarDias(inicio, i - 1);
+            if (i === 1) {
+                await revisarReposicion(dia, ctx, { inicial: true });
+                await recibirOrdenes(dia, ctx);
+            } else {
+                await darDeBajaVencidos(dia, ctx);
+                await recibirOrdenes(dia, ctx);
+                await revisarReposicion(dia, ctx, { cancelarUna: i === 5 });
+            }
+            if (dia.getDay() === 6) await degustacion(dia, ctx);
+            await devolucionesDelDia(dia, ctx, i);
+            await venderDia(dia, ctx, i);
+            await movimientosDelDia(dia, ctx, i);
         }
-        if (dia.getDay() === 6) await degustacion(dia, ctx);
-        await devolucionesDelDia(dia, ctx, i);
-        await venderDia(dia, ctx, i);
-        await movimientosDelDia(dia, ctx, i);
-        const ventas = (ctx.ventasPorDia[i] || []).length;
-        log(`   ${iso(dia)} ${dia.toLocaleDateString("es-CO", { weekday: "short" }).padEnd(5)} ventas: ${String(ventas).padStart(2)}`);
+    } finally {
+        restaurarReloj();
     }
 
-    log("\n✅ Simulación terminada:");
+    log(`✅ Datos de demostración cargados:`);
     log(`   Órdenes de compra: ${resumen.ordenes} (${resumen.recibidas} recibidas, ${resumen.canceladas} cancelada, ${resumen.ordenes - resumen.recibidas - resumen.canceladas} pendientes)`);
     log(`   Ventas: ${resumen.ventas} por $${resumen.ventasValor.toLocaleString("es-CO")} · anuladas: ${resumen.anuladas} · modificadas: ${resumen.editadas} · devoluciones: ${resumen.devoluciones}`);
-    log(`   Salidas de mercancía (bajas y degustaciones): ${resumen.bajas} · evaluaciones de proveedores: ${resumen.evaluaciones}`);
-    log(`   Pedidos que no se pudieron atender completos por falta de producto: ${resumen.sinStock}`);
-    log(`   Movimientos contables manuales: ${resumen.egresos} egresos, ${resumen.ingresos} ingresos`);
-}
-
-try {
-    await main();
-} catch (error) {
-    console.error("❌ La simulación se detuvo:", error.message);
-    process.exitCode = 1;
-} finally {
-    restaurarReloj();
-    await sequelize.close();
+    log(`   Salidas (bajas y degustaciones): ${resumen.bajas} · evaluaciones de proveedores: ${resumen.evaluaciones} · gastos registrados: ${resumen.egresos}`);
+    return resumen;
 }

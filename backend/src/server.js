@@ -9,6 +9,7 @@ import { ajustarModelosAlEsquema } from "./configuration/esquemaModelos.js";
 import { prepararEsquemaSeguridad } from "./configuration/esquemaSeguridad.js";
 import { prepararEsquemaNegocio } from "./configuration/esquemaNegocio.js";
 import ProductoRepository from "./repositories/ProductoRepositories.js";
+import { cargarDatosDemo } from "./configuration/datosDemo.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -51,6 +52,16 @@ const startServer = async () => {
             if (total) console.log(`🗓️ Fechas de vencimiento sincronizadas en ${total} producto(s)`);
         } catch (error) {
             console.error("⚠️ No se pudieron sincronizar las fechas de vencimiento:", error.message);
+        }
+
+        // Catálogo real y 15 días de operación de demostración (solo el primer arranque;
+        // para no cargarlos, DATOS_DEMO=false en el .env)
+        if (process.env.DATOS_DEMO !== "false") {
+            try {
+                await cargarDatosDemo();
+            } catch (error) {
+                console.error("⚠️ No se pudieron cargar los datos de demostración:", error.message);
+            }
         }
 
         app.listen(PORT, () => {

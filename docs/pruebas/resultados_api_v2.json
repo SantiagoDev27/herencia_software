@@ -1,0 +1,509 @@
+{
+ "fecha": "2026-11-23",
+ "resultados": [
+  {
+   "cp": "101",
+   "esc": "E1",
+   "desc": "Registrar cliente con datos válidos",
+   "ok": true,
+   "obtenido": "HTTP 201: id=2"
+  },
+  {
+   "cp": "101",
+   "esc": "E2",
+   "desc": "Identificación duplicada",
+   "ok": true,
+   "obtenido": "HTTP 409: Ya existe un cliente con la identificación 1107123456."
+  },
+  {
+   "cp": "101",
+   "esc": "E3",
+   "desc": "Datos inválidos",
+   "ok": true,
+   "obtenido": "HTTP 400: La identificación debe ser numérica (4 a 13 dígitos).; El nombre es obligatorio (máximo 45 caracteres).; Correo inválido."
+  },
+  {
+   "cp": "101",
+   "esc": "E4",
+   "desc": "Actualizar cliente",
+   "ok": true,
+   "obtenido": "HTTP 200: teléfono=3105556677"
+  },
+  {
+   "cp": "101",
+   "esc": "E5",
+   "desc": "Consultar clientes por búsqueda",
+   "ok": true,
+   "obtenido": "HTTP 200: 1 resultado(s)"
+  },
+  {
+   "cp": "101",
+   "esc": "E6",
+   "desc": "Finanzas no registra clientes",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "101",
+   "esc": "E7",
+   "desc": "Cédula/NIT largo (BIGINT)",
+   "ok": true,
+   "obtenido": "HTTP 201: identificación=1234567890123"
+  },
+  {
+   "cp": "102",
+   "esc": "E1",
+   "desc": "Venta con cliente y Nequi genera ingreso contable",
+   "ok": true,
+   "obtenido": "HTTP 201: VEN-001 total=51420.00, ingreso=51420.00|VENTA|5"
+  },
+  {
+   "cp": "102",
+   "esc": "E2",
+   "desc": "Cliente inexistente",
+   "ok": true,
+   "obtenido": "HTTP 404: El cliente con id 999 no existe."
+  },
+  {
+   "cp": "102",
+   "esc": "E3",
+   "desc": "Stock insuficiente",
+   "ok": true,
+   "obtenido": "HTTP 400: Stock insuficiente para \"Manjar blanco 500 g\". Disponible: 10, solicitado: 99"
+  },
+  {
+   "cp": "103",
+   "esc": "E1",
+   "desc": "Modificar cantidades y descuento de una venta del día",
+   "ok": true,
+   "obtenido": "HTTP 200: total=65000.00, stock arequipe=34"
+  },
+  {
+   "cp": "103",
+   "esc": "E2",
+   "desc": "El ingreso contable se actualiza con la venta",
+   "ok": true,
+   "obtenido": "ingreso=65000.00"
+  },
+  {
+   "cp": "103",
+   "esc": "E3",
+   "desc": "No se modifica una venta de otro día",
+   "ok": true,
+   "obtenido": "HTTP 409: Solo se pueden modificar ventas del día. La venta VEN-090 es del 2026-11-20 y ya hace parte del cierre."
+  },
+  {
+   "cp": "103",
+   "esc": "E4",
+   "desc": "Finanzas no modifica ventas",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "104",
+   "esc": "E1",
+   "desc": "Devolución parcial que vuelve al inventario",
+   "ok": true,
+   "obtenido": "HTTP 201: DEV-1 total=14679.31, stock arequipe=36, egreso=14679.31|DEVOLUCION"
+  },
+  {
+   "cp": "104",
+   "esc": "E2",
+   "desc": "Devolver más de lo vendido",
+   "ok": true,
+   "obtenido": "HTTP 400: Cantidad a devolver inválida para \"Arequipe 250 g\". Máximo: 4."
+  },
+  {
+   "cp": "104",
+   "esc": "E3",
+   "desc": "Devolución de producto dañado no reintegra stock",
+   "ok": true,
+   "obtenido": "HTTP 201: stock cocadas=18"
+  },
+  {
+   "cp": "104",
+   "esc": "E4",
+   "desc": "La venta queda en 'Devolución parcial'",
+   "ok": true,
+   "obtenido": "estado=Devolución parcial, editable=False"
+  },
+  {
+   "cp": "104",
+   "esc": "E5",
+   "desc": "Comprobante de devolución en PDF",
+   "ok": true,
+   "obtenido": "HTTP 200: application/pdf, 154416 bytes"
+  },
+  {
+   "cp": "104",
+   "esc": "E6",
+   "desc": "Motivo y productos obligatorios",
+   "ok": true,
+   "obtenido": "HTTP 400: Indica el motivo de la devolución (3 a 150 caracteres).; Indica al menos un producto a devolver."
+  },
+  {
+   "cp": "105",
+   "esc": "E1",
+   "desc": "Vendedor no puede anular (permiso por defecto)",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "105",
+   "esc": "E2",
+   "desc": "Anular venta restaura inventario y anula el ingreso",
+   "ok": true,
+   "obtenido": "HTTP 200: estado=Anulada, stock manjar=10, ingreso=Anulado"
+  },
+  {
+   "cp": "105",
+   "esc": "E3",
+   "desc": "No se anula dos veces",
+   "ok": true,
+   "obtenido": "HTTP 409: La venta VEN-091 está anulada."
+  },
+  {
+   "cp": "105",
+   "esc": "E4",
+   "desc": "No se anula una venta con devoluciones",
+   "ok": true,
+   "obtenido": "HTTP 409: No se puede anular la venta VEN-001 porque tiene devoluciones registradas."
+  },
+  {
+   "cp": "105",
+   "esc": "E5",
+   "desc": "La factura de una venta anulada sigue disponible (marcada)",
+   "ok": true,
+   "obtenido": "HTTP 200: 154880 bytes"
+  },
+  {
+   "cp": "105",
+   "esc": "E6",
+   "desc": "Las ventas anuladas no suman en el reporte",
+   "ok": true,
+   "obtenido": "ventas en reporte=['VEN-001', 'VEN-090']; devoluciones=25160.34"
+  },
+  {
+   "cp": "106",
+   "esc": "E1",
+   "desc": "Consultar la matriz de permisos",
+   "ok": true,
+   "obtenido": "HTTP 200: 22 permisos; Vendedor tiene 16"
+  },
+  {
+   "cp": "106",
+   "esc": "E2",
+   "desc": "Conceder 'Anular ventas' al Vendedor surte efecto de inmediato",
+   "ok": true,
+   "obtenido": "guardar 200; anular como vendedor 200"
+  },
+  {
+   "cp": "106",
+   "esc": "E3",
+   "desc": "Quitar 'Registrar ventas' bloquea la operación y el login refleja los permisos",
+   "ok": true,
+   "obtenido": "venta HTTP 403; permisos en sesión=15"
+  },
+  {
+   "cp": "106",
+   "esc": "E4",
+   "desc": "Permiso desconocido",
+   "ok": true,
+   "obtenido": "HTTP 400: Permisos desconocidos: inventado"
+  },
+  {
+   "cp": "106",
+   "esc": "E5",
+   "desc": "Los permisos del Administrador no se pueden quitar",
+   "ok": true,
+   "obtenido": "HTTP 400: Solo se configuran los roles Vendedor (2) y Finanzas (3)."
+  },
+  {
+   "cp": "106",
+   "esc": "E6",
+   "desc": "Solo el administrador configura permisos",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "107",
+   "esc": "E1",
+   "desc": "Crear orden de compra (precio pactado + IVA)",
+   "ok": true,
+   "obtenido": "HTTP 201: OC-1 subtotal=248000.00, iva=9120.00, total=257120.00"
+  },
+  {
+   "cp": "107",
+   "esc": "E2",
+   "desc": "Orden sin productos",
+   "ok": true,
+   "obtenido": "HTTP 400: La orden debe tener al menos un producto."
+  },
+  {
+   "cp": "107",
+   "esc": "E3",
+   "desc": "No se desactiva un proveedor con órdenes pendientes",
+   "ok": true,
+   "obtenido": "HTTP 409: El proveedor tiene 1 orden(es) de compra pendiente(s). Recíbelas o cancélalas antes de desactivarlo."
+  },
+  {
+   "cp": "107",
+   "esc": "E4",
+   "desc": "Orden de compra imprimible (PDF)",
+   "ok": true,
+   "obtenido": "HTTP 200: 154547 bytes"
+  },
+  {
+   "cp": "107",
+   "esc": "E5",
+   "desc": "Recibir la orden: entrada con lotes, stock y egreso",
+   "ok": true,
+   "obtenido": "HTTP 200: estado=Recibida, stock arequipe 36→86, egreso=257120.00|COMPRA"
+  },
+  {
+   "cp": "107",
+   "esc": "E6",
+   "desc": "No se recibe dos veces",
+   "ok": true,
+   "obtenido": "HTTP 409: La orden OC-1 ya está recibida."
+  },
+  {
+   "cp": "107",
+   "esc": "E7",
+   "desc": "Cancelar orden pendiente",
+   "ok": true,
+   "obtenido": "HTTP 200: estado=Cancelada"
+  },
+  {
+   "cp": "107",
+   "esc": "E8",
+   "desc": "Finanzas consulta pero no crea órdenes",
+   "ok": true,
+   "obtenido": "crear HTTP 403; consultar 200"
+  },
+  {
+   "cp": "108",
+   "esc": "E1",
+   "desc": "Registrar evaluación (promedio automático)",
+   "ok": true,
+   "obtenido": "HTTP 201: calificación=4.33"
+  },
+  {
+   "cp": "108",
+   "esc": "E2",
+   "desc": "Historial y promedio del proveedor",
+   "ok": true,
+   "obtenido": "2 evaluaciones; promedio=4.17"
+  },
+  {
+   "cp": "108",
+   "esc": "E3",
+   "desc": "Notas fuera de 1 a 5",
+   "ok": true,
+   "obtenido": "HTTP 400: cumplimiento debe ser de 1 a 5.; calidad debe ser de 1 a 5."
+  },
+  {
+   "cp": "108",
+   "esc": "E4",
+   "desc": "Vendedor sin permiso de evaluar",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "109",
+   "esc": "E1",
+   "desc": "Reporte con compras, cumplimiento y calificación",
+   "ok": true,
+   "obtenido": "HTTP 200: Dulces Típicos del Valle SAS: órdenes=2, comprado=257120, cumplimiento=100%, calificación=4.17"
+  },
+  {
+   "cp": "109",
+   "esc": "E2",
+   "desc": "Exportar reporte de proveedores a PDF",
+   "ok": true,
+   "obtenido": "HTTP 200: 154661 bytes"
+  },
+  {
+   "cp": "109",
+   "esc": "E3",
+   "desc": "Rango de fechas inválido",
+   "ok": true,
+   "obtenido": "HTTP 400: La fecha inicial no puede ser posterior a la fecha final."
+  },
+  {
+   "cp": "110",
+   "esc": "E1",
+   "desc": "Catálogo base de cuentas (PUC)",
+   "ok": true,
+   "obtenido": "HTTP 200: 15 cuentas"
+  },
+  {
+   "cp": "110",
+   "esc": "E2",
+   "desc": "Crear cuenta",
+   "ok": true,
+   "obtenido": "HTTP 201: id=16"
+  },
+  {
+   "cp": "110",
+   "esc": "E3",
+   "desc": "Código duplicado",
+   "ok": true,
+   "obtenido": "HTTP 409: Ya existe una cuenta con el código 5160."
+  },
+  {
+   "cp": "110",
+   "esc": "E4",
+   "desc": "Datos inválidos",
+   "ok": true,
+   "obtenido": "HTTP 400: El código debe ser numérico (hasta 10 dígitos).; El nombre es obligatorio (máximo 100 caracteres).; Tipo inválido: Activo, Pasivo, Patrimonio, Ingreso, Gasto, Costo.; La naturaleza debe ser Débito o Crédito."
+  },
+  {
+   "cp": "110",
+   "esc": "E5",
+   "desc": "Cuenta inactiva no recibe movimientos",
+   "ok": true,
+   "obtenido": "desactivar 200; egreso HTTP 400: La cuenta 5160 está inactiva."
+  },
+  {
+   "cp": "110",
+   "esc": "E6",
+   "desc": "Vendedor sin acceso a contabilidad",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "111",
+   "esc": "E1",
+   "desc": "Registrar ingreso",
+   "ok": true,
+   "obtenido": "HTTP 201: ING-0004 valor=2000000.00"
+  },
+  {
+   "cp": "111",
+   "esc": "E2",
+   "desc": "Registrar egreso",
+   "ok": true,
+   "obtenido": "HTTP 201: EGR-0004 valor=800000.00"
+  },
+  {
+   "cp": "111",
+   "esc": "E3",
+   "desc": "Campos obligatorios y valor positivo",
+   "ok": true,
+   "obtenido": "HTTP 400: El concepto es obligatorio (máximo 150 caracteres).; El valor debe ser mayor a 0.; Selecciona la cuenta contable.; Selecciona el método de pago."
+  },
+  {
+   "cp": "111",
+   "esc": "E4",
+   "desc": "Comprobante de egreso en PDF",
+   "ok": true,
+   "obtenido": "HTTP 200: 154298 bytes"
+  },
+  {
+   "cp": "111",
+   "esc": "E5",
+   "desc": "Anular egreso manual",
+   "ok": true,
+   "obtenido": "HTTP 200: estado=Anulado"
+  },
+  {
+   "cp": "111",
+   "esc": "E6",
+   "desc": "No se anula desde contabilidad un ingreso generado por una venta",
+   "ok": true,
+   "obtenido": "HTTP 409: Este movimiento lo generó el módulo de ventas; corrígelo desde allí."
+  },
+  {
+   "cp": "112",
+   "esc": "E1",
+   "desc": "Movimientos del periodo con totales",
+   "ok": true,
+   "obtenido": "HTTP 200: ingresos=2125000, egresos=1232280.34, neto=892719.66, registros=8"
+  },
+  {
+   "cp": "112",
+   "esc": "E2",
+   "desc": "Filtrar por tipo y cuenta",
+   "ok": true,
+   "obtenido": "1 movimiento(s): Arriendo local noviembre"
+  },
+  {
+   "cp": "112",
+   "esc": "E3",
+   "desc": "Totales por cuenta",
+   "ok": true,
+   "obtenido": "porCuenta=[{'cuenta': '5120 Arrendamientos', 'ingresos': 0, 'egresos': 800000, 'movimientos': 1}]"
+  },
+  {
+   "cp": "113",
+   "esc": "E1",
+   "desc": "Estado de resultados cuadra",
+   "ok": true,
+   "obtenido": "HTTP 200: ingresos netos=58093.1, costo=26800, bruta=31293.1, gastos=950000, otros=60000, pérdida neta=-858706.9"
+  },
+  {
+   "cp": "113",
+   "esc": "E2",
+   "desc": "Devoluciones y anuladas descontadas",
+   "ok": true,
+   "obtenido": "devoluciones=23486.9"
+  },
+  {
+   "cp": "113",
+   "esc": "E3",
+   "desc": "Exportar a PDF",
+   "ok": true,
+   "obtenido": "HTTP 200: 154937 bytes"
+  },
+  {
+   "cp": "114",
+   "esc": "E1",
+   "desc": "Ecuación contable: Activo = Pasivo + Patrimonio",
+   "ok": true,
+   "obtenido": "HTTP 200: activos=1690293.1, pasivos=0, patrimonio=1690293.1"
+  },
+  {
+   "cp": "114",
+   "esc": "E2",
+   "desc": "Inventario valorado al costo coincide con la BD",
+   "ok": true,
+   "obtenido": "inventario balance=771200, BD=771200.0"
+  },
+  {
+   "cp": "114",
+   "esc": "E3",
+   "desc": "Exportar balance a PDF",
+   "ok": true,
+   "obtenido": "HTTP 200: 155215 bytes"
+  },
+  {
+   "cp": "115",
+   "esc": "E1",
+   "desc": "Saldo final = inicial + entradas − salidas",
+   "ok": true,
+   "obtenido": "HTTP 200: inicial=0, entradas=2125000, salidas=1232280.34, final=892719.66"
+  },
+  {
+   "cp": "115",
+   "esc": "E2",
+   "desc": "El saldo inicial arrastra los días anteriores",
+   "ok": true,
+   "obtenido": "saldo inicial hoy=1200000"
+  },
+  {
+   "cp": "115",
+   "esc": "E3",
+   "desc": "Exportar flujo de caja a PDF",
+   "ok": true,
+   "obtenido": "HTTP 200: 155254 bytes"
+  },
+  {
+   "cp": "116",
+   "esc": "E1",
+   "desc": "Las nuevas operaciones quedan en la auditoría",
+   "ok": true,
+   "obtenido": "faltan=ninguna"
+  }
+ ]
+}

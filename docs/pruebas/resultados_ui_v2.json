@@ -1,0 +1,164 @@
+{
+ "resultados": [
+  {
+   "cp": "117",
+   "esc": "E1",
+   "desc": "Menú del Vendedor incluye Clientes y Órdenes de compra, no Contabilidad",
+   "ok": true,
+   "obtenido": "Menú: PRINCIPAL · Resumen · INVENTARIO · Productos · Entradas y salidas · COMERCIAL · Ventas · Clientes · Proveedores · Órdenes de compra · SISTEMA · Mi cuenta",
+   "captura": "v_menu_vendedor.png"
+  },
+  {
+   "cp": "101",
+   "esc": "E8",
+   "desc": "Registrar cliente desde la interfaz",
+   "ok": true,
+   "obtenido": "Aviso de éxito y cliente en la lista con sus compras",
+   "captura": "v_clientes.png"
+  },
+  {
+   "cp": "102",
+   "esc": "E4",
+   "desc": "Venta con cliente y método de pago desde la interfaz",
+   "ok": true,
+   "obtenido": "La factura muestra el cliente, el pago Nequi y las acciones Modificar / Devolución",
+   "captura": "v_venta_factura.png"
+  },
+  {
+   "cp": "103",
+   "esc": "E5",
+   "desc": "Modificar la venta desde la interfaz",
+   "ok": true,
+   "obtenido": "Aviso 'Venta … actualizada' y factura con la nueva cantidad",
+   "captura": "v_venta_editada.png"
+  },
+  {
+   "cp": "104",
+   "esc": "E7",
+   "desc": "Registrar devolución desde la interfaz",
+   "ok": true,
+   "obtenido": "Aviso de devolución y descarga del comprobante Devolucion-DEV-4.pdf",
+   "captura": "v_devolucion_ok.png"
+  },
+  {
+   "cp": "105",
+   "esc": "E7",
+   "desc": "Anular venta desde la interfaz",
+   "ok": true,
+   "obtenido": "La venta aparece como 'Anulada' y su total tachado",
+   "captura": "v_ventas_estados.png"
+  },
+  {
+   "cp": "106",
+   "esc": "E7",
+   "desc": "Configurar permisos desde la interfaz",
+   "ok": true,
+   "obtenido": "Matriz por rol con casillas y aviso de guardado",
+   "captura": "v_permisos_ok.png"
+  },
+  {
+   "cp": "108",
+   "esc": "E5",
+   "desc": "Evaluar proveedor desde la interfaz",
+   "ok": true,
+   "obtenido": "Estrellas por criterio, aviso y historial",
+   "captura": "v_evaluacion.png"
+  },
+  {
+   "cp": "106",
+   "esc": "E8",
+   "desc": "El Vendedor ve Contabilidad tras concederle el permiso",
+   "ok": true,
+   "obtenido": "Menú: PRINCIPAL · Resumen · INVENTARIO · Productos · Entradas y salidas · COMERCIAL · Ventas · Clientes · Proveedores · Órdenes de compra · FINANZAS · Contabilidad · SISTEMA · Mi cuenta",
+   "captura": "v_menu_vendedor_permiso.png"
+  },
+  {
+   "cp": "107",
+   "esc": "E9",
+   "desc": "Crear orden de compra desde la interfaz",
+   "ok": true,
+   "obtenido": "Aviso con número y total; se abre el detalle",
+   "captura": "v_oc_detalle.png"
+  },
+  {
+   "cp": "107",
+   "esc": "E10",
+   "desc": "Recibir orden desde la interfaz",
+   "ok": true,
+   "obtenido": "Aviso de recepción; la orden pasa a 'Recibida'",
+   "captura": "v_oc_lista.png"
+  },
+  {
+   "cp": "111",
+   "esc": "E7",
+   "desc": "Registrar ingreso desde la interfaz con comprobante",
+   "ok": true,
+   "obtenido": "Aviso y descarga Comprobante-ING-0007.pdf",
+   "captura": "v_cont_ingreso_ok.png"
+  },
+  {
+   "cp": "113",
+   "esc": "E4",
+   "desc": "Estado de resultados en pantalla",
+   "ok": true,
+   "obtenido": "Pestaña 'Estado de resultados' con sus totales y exportación PDF/Excel",
+   "captura": "v_cont_resultados.png"
+  },
+  {
+   "cp": "114",
+   "esc": "E4",
+   "desc": "Balance general en pantalla con la ecuación contable",
+   "ok": true,
+   "obtenido": "Pestaña 'Balance general' con sus totales y exportación PDF/Excel",
+   "captura": "v_cont_balance.png"
+  },
+  {
+   "cp": "115",
+   "esc": "E4",
+   "desc": "Flujo de caja con gráfico diario",
+   "ok": true,
+   "obtenido": "Pestaña 'Flujo de caja' con sus totales y exportación PDF/Excel",
+   "captura": "v_cont_flujo.png"
+  },
+  {
+   "cp": "110",
+   "esc": "E7",
+   "desc": "Catálogo de cuentas en pantalla",
+   "ok": true,
+   "obtenido": "Pestaña 'Cuentas contables' con sus totales y exportación PDF/Excel",
+   "captura": "v_cont_cuentas.png"
+  },
+  {
+   "cp": "113",
+   "esc": "E5",
+   "desc": "Descargar estado de resultados en PDF desde la interfaz",
+   "ok": true,
+   "obtenido": "Archivo Estado-Resultados-2026-10-24-a-2026-11-23.pdf",
+   "captura": "v_cont_resultados.png"
+  },
+  {
+   "cp": "109",
+   "esc": "E4",
+   "desc": "Reporte de proveedores en pantalla",
+   "ok": true,
+   "obtenido": "Indicadores y tabla por proveedor con estrellas",
+   "captura": "v_reporte_proveedores.png"
+  },
+  {
+   "cp": "118",
+   "esc": "E1",
+   "desc": "Exportar el reporte de inventario a Excel (HU-INV-008)",
+   "ok": true,
+   "obtenido": "Archivo Reporte-Inventario-2026-11-23.csv",
+   "captura": "v_reporte_inventario.png"
+  },
+  {
+   "cp": "101",
+   "esc": "E9",
+   "desc": "Finanzas consulta clientes sin poder editarlos",
+   "ok": true,
+   "obtenido": "Lista visible, sin botón 'Nuevo cliente'",
+   "captura": "v_clientes_finanzas.png"
+  }
+ ]
+}

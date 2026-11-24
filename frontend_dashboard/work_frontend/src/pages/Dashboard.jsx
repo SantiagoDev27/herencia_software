@@ -19,7 +19,7 @@ import ventaService from "../service/ventaService";
 import movimientoService from "../service/movimientoService";
 import notificacionService from "../service/notificacionService";
 import proveedorService from "../service/proveedorService";
-import { fmtCOP, fmtCompacto, fmtFecha, toList, mesKey, mesCorto } from "../lib/format";
+import { fmtCOP, fmtCompacto, fmtFecha, toList, mesKey, mesCorto, hoyISO } from "../lib/format";
 
 // Mismos colores que los tokens --chart-* de index.css (recharts necesita valores literales)
 const VERDE = "#25794D";
@@ -29,6 +29,35 @@ const COLORES_PIE = [VERDE, AZUL, AMARILLO, "#8ED3A8", "#4A9CC9"];
 
 const estiloTooltip = { borderRadius: 12, border: "1px solid #E1EBE2", fontSize: 12 };
 const ejeTick = { fontSize: 11, fill: "#587063" };
+
+// Ventas no anuladas de los últimos 6 meses, agrupadas por día. Con permiso de reportes
+// se usa el reporte de ventas (un solo cálculo en el servidor); sin él, se recorren las
+// páginas del listado de ventas del mes actual.
+async function ventasAgrupadasPorDia(conReporte) {
+  const hoy = new Date();
+  const desde = (meses) => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - meses, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  };
+  if (conReporte) {
+    const res = await reporteService.obtenerReporteVentas({ fechaInicio: desde(5), fechaFin: hoyISO() });
+    return (res?.data?.porDia ?? []).map((d) => ({ fecha: d.fecha, cantidadVentas: Number(d.cantidadVentas), total: Number(d.total) }));
+  }
+  const porDia = new Map();
+  for (let pagina = 1, totalPaginas = 1; pagina <= totalPaginas && pagina <= 20; pagina++) {
+    const res = await ventaService.listarVentas({ pagina, limite: 500, fechaInicio: desde(0), fechaFin: hoyISO() });
+    totalPaginas = res?.data?.totalPaginas ?? 1;
+    for (const v of toList(res, "ventas")) {
+      if (v.estado_venta === "Anulada") continue;
+      const dia = String(v.fecha).slice(0, 10);
+      const d = porDia.get(dia) ?? { fecha: dia, cantidadVentas: 0, total: 0 };
+      d.cantidadVentas += 1;
+      d.total += Number(v.total || 0);
+      porDia.set(dia, d);
+    }
+  }
+  return [...porDia.values()];
+}
 
 // Últimos 6 meses (incluye el actual) como claves "YYYY-MM"
 const ultimosMeses = (cantidad = 6) => {
@@ -41,22 +70,26 @@ const ultimosMeses = (cantidad = 6) => {
 
 export function Dashboard() {
   const { puede } = useAuth();
+  const puedeVerReportes = puede("reportes");
   const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState(null);
   const [reporte, setReporte] = useState(null);
   const [ventas, setVentas] = useState({ lista: [], total: 0 });
+  // Ventas (no anuladas) agrupadas por día de los últimos 6 meses: { fecha, cantidadVentas, total }
+  const [ventasPorDia, setVentasPorDia] = useState([]);
   const [ingresos, setIngresos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [alertas, setAlertas] = useState({ stockMinimo: [], proximosVencer: [], agotados: [] });
 
   const cargarDatos = useCallback(async (silencioso = false) => {
     if (!silencioso) setCargando(true);
-    const [resRep, resVentas, resIng, resProv, resAlertas] = await Promise.allSettled([
+    const [resRep, resVentas, resIng, resProv, resAlertas, resPorDia] = await Promise.allSettled([
       reporteService.obtenerReporteInventario(),
-      ventaService.listarVentas({ pagina: 1, limite: 100 }),
+      ventaService.listarVentas({ pagina: 1, limite: 5 }),
       movimientoService.listarIngresos(),
       proveedorService.obtenerTodos(),
       notificacionService.obtenerTodas(),
+      ventasAgrupadasPorDia(puedeVerReportes),
     ]);
 
     setReporte(resRep.status === "fulfilled" ? resRep.value?.data ?? null : null);
@@ -68,6 +101,7 @@ export function Dashboard() {
     setIngresos(resIng.status === "fulfilled" ? toList(resIng.value) : []);
     setProveedores(resProv.status === "fulfilled" ? toList(resProv.value) : []);
     if (resAlertas.status === "fulfilled") setAlertas(resAlertas.value);
+    if (resPorDia.status === "fulfilled") setVentasPorDia(resPorDia.value);
 
     const fallos = [resRep, resVentas, resIng, resProv].filter((r) => r.status === "rejected");
     if (!silencioso || !fallos.length) {
@@ -78,7 +112,7 @@ export function Dashboard() {
       );
     }
     if (!silencioso) setCargando(false);
-  }, []);
+  }, [puedeVerReportes]);
 
   useEffect(() => {
     cargarDatos();
@@ -89,26 +123,27 @@ export function Dashboard() {
   const resumen = reporte?.resumen ?? {};
   const inventario = useMemo(() => reporte?.inventario ?? [], [reporte]);
 
-  // Ventas del mes actual (de las últimas 100 ventas que devuelve el backend)
+  // Ventas del mes actual (todas las del mes, sin las anuladas)
   const mesActual = ultimosMeses(1)[0];
-  const ventasDelMes = ventas.lista.filter((v) => mesKey(v.fecha) === mesActual);
-  const totalVentasMes = ventasDelMes.reduce((acc, v) => acc + Number(v.total || 0), 0);
+  const diasDelMes = ventasPorDia.filter((d) => mesKey(d.fecha) === mesActual);
+  const facturasMes = diasDelMes.reduce((acc, d) => acc + d.cantidadVentas, 0);
+  const totalVentasMes = diasDelMes.reduce((acc, d) => acc + d.total, 0);
 
   // Ventas vs compras (entradas de mercancía) por mes: datos reales
   const serieMensual = useMemo(() => {
     const meses = ultimosMeses(6);
     const ventasPorMes = new Map(meses.map((m) => [m, 0]));
     const comprasPorMes = new Map(meses.map((m) => [m, 0]));
-    ventas.lista.forEach((v) => {
-      const k = mesKey(v.fecha);
-      if (ventasPorMes.has(k)) ventasPorMes.set(k, ventasPorMes.get(k) + Number(v.total || 0));
+    ventasPorDia.forEach((d) => {
+      const k = mesKey(d.fecha);
+      if (ventasPorMes.has(k)) ventasPorMes.set(k, ventasPorMes.get(k) + d.total);
     });
     ingresos.forEach((ing) => {
       const k = mesKey(ing.fecha);
       if (comprasPorMes.has(k)) comprasPorMes.set(k, comprasPorMes.get(k) + Number(ing.total || 0));
     });
     return meses.map((m) => ({ mes: mesCorto(m), ventas: ventasPorMes.get(m), compras: comprasPorMes.get(m) }));
-  }, [ventas.lista, ingresos]);
+  }, [ventasPorDia, ingresos]);
   const haySerie = serieMensual.some((d) => d.ventas > 0 || d.compras > 0);
 
   // Productos por categoría (del reporte de inventario)
@@ -179,7 +214,7 @@ export function Dashboard() {
         <KpiCard
           label="Ventas del mes"
           value={fmtCOP(totalVentasMes)}
-          sub={`${ventasDelMes.length} facturas · ${ventas.total} en total`}
+          sub={`${facturasMes} facturas · ${ventas.total} en total`}
           icon={TrendingUp}
           color="bg-primary-soft text-primary"
         />

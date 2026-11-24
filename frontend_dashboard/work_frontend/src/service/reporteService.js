@@ -15,6 +15,13 @@ const reporteService = {
     const blob = await axiosClient.get("/reportes/ventas/pdf", { params, responseType: "blob" });
     descargarBlob(blob, `Reporte-Ventas-${params.fechaInicio ?? ""}-a-${params.fechaFin ?? hoyISO()}.pdf`);
   },
+
+  // HU-PROV-008: reporte de proveedores
+  obtenerReporteProveedores: (params = {}) => axiosClient.get("/reportes/proveedores", { params }),
+  descargarReporteProveedoresPDF: async (params = {}) => {
+    const blob = await axiosClient.get("/reportes/proveedores/pdf", { params, responseType: "blob" });
+    descargarBlob(blob, `Reporte-Proveedores-${params.fechaInicio ?? ""}-a-${params.fechaFin ?? hoyISO()}.pdf`);
+  },
 };
 
 export default reporteService;

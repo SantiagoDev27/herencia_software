@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Package, ArrowLeftRight, ShoppingCart, Truck, BarChart3, Users, UserRound,
+  LayoutDashboard, Package, ArrowLeftRight, ShoppingCart, Truck, BarChart3, Users, UserRound, Contact, ClipboardList, Landmark,
 } from "lucide-react";
 
 // Solo módulos que tienen servicio real en el backend.
@@ -20,8 +20,14 @@ export const navSections = [
     label: "Comercial",
     items: [
       { id: "ventas", label: "Ventas", icon: ShoppingCart, path: "ventas", permiso: "ventas" },
+      { id: "clientes", label: "Clientes", icon: Contact, path: "clientes", permiso: "clientes" },
       { id: "proveedores", label: "Proveedores", icon: Truck, path: "proveedores", permiso: "proveedores" },
+      { id: "compras", label: "Órdenes de compra", icon: ClipboardList, path: "compras", permiso: "compras" },
     ],
+  },
+  {
+    label: "Finanzas",
+    items: [{ id: "contabilidad", label: "Contabilidad", icon: Landmark, path: "contabilidad", permiso: "contabilidad" }],
   },
   {
     label: "Sistema",

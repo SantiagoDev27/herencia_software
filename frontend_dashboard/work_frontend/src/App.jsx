@@ -11,6 +11,9 @@ import Ventas from "./pages/Ventas";
 import Reportes from "./pages/Reportes";
 import Usuarios from "./pages/Usuarios";
 import MiCuenta from "./pages/MiCuenta";
+import Clientes from "./pages/Clientes";
+import Compras from "./pages/Compras";
+import Contabilidad from "./pages/Contabilidad";
 import { NotFound } from "./pages/ComingSoon";
 import "./App.css";
 
@@ -37,6 +40,15 @@ function App() {
           </Route>
           <Route element={<RoleRoute permiso="reportes" />}>
             <Route path="reportes" element={<Reportes />} />
+          </Route>
+          <Route element={<RoleRoute permiso="clientes" />}>
+            <Route path="clientes" element={<Clientes />} />
+          </Route>
+          <Route element={<RoleRoute permiso="compras" />}>
+            <Route path="compras" element={<Compras />} />
+          </Route>
+          <Route element={<RoleRoute permiso="contabilidad" />}>
+            <Route path="contabilidad" element={<Contabilidad />} />
           </Route>
           <Route element={<RoleRoute permiso="usuarios" />}>
             <Route path="usuarios" element={<Usuarios />} />

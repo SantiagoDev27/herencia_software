@@ -22,22 +22,39 @@ export const ROLES_ASIGNABLES = [
 
 export const nombreRolPorId = (id) => ROLES_ASIGNABLES.find((r) => r.id === Number(id))?.nombre ?? "—";
 
-// Módulos (pantallas del menú) y acciones dentro de ellas
+// Permisos por defecto (iguales a backend/src/configuration/permisos.js). Desde la v1.2 el
+// administrador los cambia en Usuarios › Permisos por rol y llegan con la sesión
+// (usuario.permisos); esta tabla solo se usa si la sesión aún no los trae.
+// "usuarios" y "cuenta" son fijos: no se configuran.
 export const PERMISOS = {
   // módulos
   dashboard: [A, V, F],
   productos: [A, V],
   movimientos: [A, V, F],
   ventas: [A, V, F],
+  clientes: [A, V, F],
   proveedores: [A, V],
+  compras: [A, V, F],
   reportes: [A, F],
+  contabilidad: [A, F],
   usuarios: [A],
   cuenta: [A, V, F],
   // acciones
+  gestionarProductos: [A, V],
+  retirarProducto: [A, V],
   registrarMovimiento: [A, V],
   registrarVenta: [A, V],
-  retirarProducto: [A, V],
+  editarVenta: [A, V],
+  anularVenta: [A],
+  devoluciones: [A, V],
+  gestionarClientes: [A, V],
+  gestionarProveedores: [A, V],
+  gestionarCompras: [A, V],
+  evaluarProveedores: [A],
+  registrarContable: [A, F],
+  gestionarCuentas: [A, F],
 };
+const FIJOS = ["usuarios", "cuenta"];
 
 // Nombres antiguos de la tabla "rol" y respaldo por id, para sesiones guardadas antes del cambio
 const ALIAS = {
@@ -55,5 +72,8 @@ export const rolDe = (usuario) => {
 
 export const puede = (usuario, permiso) => {
   const rol = rolDe(usuario);
-  return !!rol && (PERMISOS[permiso] ?? []).includes(rol);
+  if (!rol) return false;
+  if (rol === A) return true;
+  if (FIJOS.includes(permiso) || !Array.isArray(usuario?.permisos)) return (PERMISOS[permiso] ?? []).includes(rol);
+  return usuario.permisos.includes(permiso);
 };

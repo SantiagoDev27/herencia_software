@@ -1,6 +1,6 @@
 import {Router} from "express";
-import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
-import { CONTABILIDAD } from '../configuration/roles.js';
+import { verificarToken, requierePermiso } from '../middleware/authMiddleware.js';
+import ReporteProveedoresController from "../controllers/ReporteProveedoresController.js";
 import { generarReporteInventarioValidation } from "../validations/ReporteInventarioValidations.js";
 import { validarCampos } from "../middleware/validarCampos.middleware.js";
 import ReporteInventarioController from "../controllers/ReporteInventarioController.js";
@@ -22,7 +22,7 @@ router.get(
     "/inventario/pdf",
     generarReporteInventarioValidation,
     validarCampos,
-    permitirRoles(...CONTABILIDAD),
+    requierePermiso('reportes'),
     ReporteInventarioController.generarReporteInventarioPDF
 );
 
@@ -33,7 +33,7 @@ router.get(
     "/ventas",
     generarReporteVentasValidation,
     validarCampos,
-    permitirRoles(...CONTABILIDAD),
+    requierePermiso('reportes'),
     ReporteVentasController.generarReporteVentas
 );
 
@@ -41,8 +41,12 @@ router.get(
     "/ventas/pdf",
     generarReporteVentasValidation,
     validarCampos,
-    permitirRoles(...CONTABILIDAD),
+    requierePermiso('reportes'),
     ReporteVentasController.generarReporteVentasPDF
 );
+
+// HU-PROV-008: Reporte de proveedores
+router.get("/proveedores", generarReporteVentasValidation, validarCampos, requierePermiso('reportes'), ReporteProveedoresController.generar);
+router.get("/proveedores/pdf", generarReporteVentasValidation, validarCampos, requierePermiso('reportes'), ReporteProveedoresController.pdf);
 
 export default router;

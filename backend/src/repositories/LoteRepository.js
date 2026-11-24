@@ -47,9 +47,10 @@ class LoteRepository {
     }
 
     // Suma el stock total disponible de un producto (a través de todos sus lotes)
-    async obtenerStockTotalPorProducto(fk_lote_id_producto) {
+    async obtenerStockTotalPorProducto(fk_lote_id_producto, transaction = null) {
         const resultado = await Lote.sum("cantidad_actual", {
-            where: { fk_lote_id_producto }
+            where: { fk_lote_id_producto },
+            transaction
         });
         return resultado || 0;
     }

@@ -9,7 +9,7 @@ const Cliente = sequelize.define('Cliente', {
         field: 'id_clientes'
     },
     identificacion: {
-        type: DataTypes.INTEGER, // ⚠️ es INT en la BD, no STRING
+        type: DataTypes.BIGINT, // BIGINT desde v1.2 (cédulas de 10 dígitos)
         allowNull: false,
         field: 'identificacion'
     },

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
-import { Download, RefreshCw, Package, AlertTriangle, CheckCircle, XCircle, Clock, TrendingUp } from "lucide-react";
+import { Download, RefreshCw, Package, AlertTriangle, CheckCircle, XCircle, Clock, TrendingUp, Truck, FileSpreadsheet } from "lucide-react";
 import ReporteVentas from "../components/reportes/ReporteVentas";
+import ReporteProveedores from "../components/reportes/ReporteProveedores";
 import reporteService from "../service/reporteService";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Notice } from "../components/ui/Notice";
 import { EstadoBadge } from "../components/ui/Badge";
-import { fmtCOP, UMBRAL_STOCK_BAJO, DIAS_POR_VENCER } from "../lib/format";
+import { fmtCOP, UMBRAL_STOCK_BAJO, DIAS_POR_VENCER, exportarCSV, hoyISO } from "../lib/format";
 
 function ReporteInventario() {
   const [reporte, setReporte] = useState(null);
@@ -74,6 +75,17 @@ function ReporteInventario() {
       >
         <button onClick={() => cargarReporte()} className="btn btn-outline btn-sm" title="Recargar" aria-label="Recargar">
           <RefreshCw size={15} className={cargando ? "animate-spin" : ""} />
+        </button>
+        <button
+          onClick={() => exportarCSV([
+            ["REPORTE DE INVENTARIO", hoyISO()],
+            ["Código", "Producto", "Categoría", "Stock", "Costo unit.", "Precio venta", "Valor a costo", "Valor de venta", "Ganancia potencial", "Vencimiento", "Estado"],
+            ...inventario.map((p) => [p.codigo_producto, p.nombre_producto, p.categoria?.nombre_categoria ?? "", p.stock, p.costo_produccion, p.precio_venta, p.costoTotalInventario, p.valorPotencialVenta, p.gananciaPotencial, p.fecha_vencimiento ?? "", p.estado]),
+          ], `Reporte-Inventario-${hoyISO()}.csv`)}
+          disabled={!inventario.length}
+          className="btn btn-outline"
+        >
+          <FileSpreadsheet size={16} /> Excel
         </button>
         <button onClick={descargarPDF} disabled={descargandoPdf} className="btn btn-primary">
           <Download size={16} className={descargandoPdf ? "animate-bounce" : ""} />
@@ -190,6 +202,7 @@ export default function Reportes() {
         {[
           ["ventas", "Reporte general de ventas", TrendingUp],
           ["inventario", "Reporte de inventario", Package],
+          ["proveedores", "Reporte de proveedores", Truck],
         ].map(([id, label, Icono]) => (
           <button
             key={id}
@@ -204,7 +217,7 @@ export default function Reportes() {
           </button>
         ))}
       </div>
-      {tab === "ventas" ? <ReporteVentas /> : <ReporteInventario />}
+      {tab === "ventas" ? <ReporteVentas /> : tab === "proveedores" ? <ReporteProveedores /> : <ReporteInventario />}
     </div>
   );
 }

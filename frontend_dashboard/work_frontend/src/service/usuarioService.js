@@ -11,6 +11,9 @@ const usuarioService = {
   cambiarEstado: (id, activo) => axiosClient.patch(`/usuarios/${id}/estado`, { activo }),
   restablecerContrasena: (id, nueva_contrasena) => axiosClient.patch(`/usuarios/${id}/contrasena`, { nueva_contrasena }),
   roles: () => axiosClient.get("/usuarios/roles"),
+  // HU-SEG-007: permisos por rol
+  permisos: () => axiosClient.get("/usuarios/permisos"),
+  guardarPermisos: (idRol, permisos) => axiosClient.put(`/usuarios/permisos/${idRol}`, { permisos }),
   auditoria: (limite = 100) => axiosClient.get("/usuarios/auditoria", { params: { limite } }),
 };
 

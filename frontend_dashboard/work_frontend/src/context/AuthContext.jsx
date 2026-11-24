@@ -57,6 +57,31 @@ export function AuthProvider({ children }) {
         setUsuario(nuevo);
     };
 
+    // HU-SEG-007: los permisos del rol pueden cambiar mientras la sesión está abierta;
+    // se consultan al abrir la app y cada minuto
+    useEffect(() => {
+        if (!usuario?.idusuario) return undefined;
+        const refrescar = async () => {
+            try {
+                const res = await authService.perfil();
+                const nuevo = res?.data;
+                if (!nuevo) return;
+                setUsuario((actual) => {
+                    if (!actual) return actual;
+                    const combinado = { ...actual, ...nuevo };
+                    if (JSON.stringify(combinado) === JSON.stringify(actual)) return actual;
+                    localStorage.setItem("usuario", JSON.stringify(combinado));
+                    return combinado;
+                });
+            } catch {
+                /* sin conexión: se conservan los permisos conocidos */
+            }
+        };
+        refrescar();
+        const timer = setInterval(refrescar, 60000);
+        return () => clearInterval(timer);
+    }, [usuario?.idusuario]);
+
     // HU-SEG-012: cierre automático por inactividad
     useEffect(() => {
         if (!usuario) return undefined;

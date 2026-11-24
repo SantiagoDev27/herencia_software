@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { UserPlus, Search, RefreshCw, Pencil, KeyRound, UserX, UserCheck, ShieldCheck, History, Eye, EyeOff } from "lucide-react";
+import { UserPlus, Search, RefreshCw, Pencil, KeyRound, UserX, UserCheck, ShieldCheck, History, Eye, EyeOff, SlidersHorizontal } from "lucide-react";
+import PermisosRol from "../components/usuarios/PermisosRol";
 import usuarioService from "../service/usuarioService";
 import { useAuth } from "../context/AuthContext";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
@@ -215,6 +216,7 @@ export default function Usuarios() {
       <div className="flex gap-1.5">
         {[
           ["usuarios", "Usuarios", ShieldCheck],
+          ["permisos", "Permisos por rol", SlidersHorizontal],
           ["auditoria", "Auditoría de accesos", History],
         ].map(([id, label, Icono]) => (
           <button
@@ -335,6 +337,8 @@ export default function Usuarios() {
             </div>
           </div>
         </>
+      ) : tab === "permisos" ? (
+        <PermisosRol />
       ) : (
         <div className="card overflow-hidden">
           <div className="border-b border-border px-5 py-4">

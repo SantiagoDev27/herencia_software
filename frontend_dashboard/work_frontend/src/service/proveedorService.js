@@ -29,6 +29,11 @@ const proveedorService = {
     axiosClient.patch(`${BASE}/proveedor-producto/${idAsociacion}`, datos),
   eliminarAsociacion: (idAsociacion) =>
     axiosClient.delete(`${BASE}/proveedor-producto/${idAsociacion}`),
+
+  // HU-PROV-007: evaluaciones (cumplimiento, calidad y tiempo de respuesta de 1 a 5)
+  evaluaciones: (idProveedor) => axiosClient.get(`${BASE}/proveedores/${idProveedor}/evaluaciones`),
+  evaluar: (idProveedor, datos) => axiosClient.post(`${BASE}/proveedores/${idProveedor}/evaluaciones`, datos),
+  resumenEvaluaciones: () => axiosClient.get(`${BASE}/evaluaciones/resumen`),
 };
 
 export default proveedorService;

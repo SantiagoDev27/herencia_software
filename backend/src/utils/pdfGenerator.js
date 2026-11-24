@@ -56,6 +56,12 @@ class PdfGenerator {
         this._dibujarDatosVenta(doc, venta);
         this._dibujarDetalleFactura(doc, detalles);
         this._dibujarTotalesFactura(doc, venta);
+        if (venta.estado_venta === "Anulada") {
+            doc.save().rotate(-30, { origin: [300, 420] }).fontSize(70).fillColor("#c0392b").opacity(0.18)
+                .text("ANULADA", 90, 380, { width: 420, align: "center" }).restore();
+            doc.opacity(1).fillColor("#c0392b").fontSize(10).font("Helvetica-Bold")
+                .text(`Venta anulada: ${venta.motivo_anulacion ?? ""}`, doc.page.margins.left, doc.y);
+        }
         this._dibujarPiePagina(doc);
 
         doc.end();
@@ -135,6 +141,69 @@ class PdfGenerator {
             v.numero_venta, v.fecha, v.vendedor, this._formatearMoneda(v.subtotal, false),
             this._formatearMoneda(v.iva, false), this._formatearMoneda(v.total, false),
         ]), "Sin ventas registradas.");
+
+        this._dibujarPiePagina(doc);
+        doc.end();
+    }
+
+    // ==========================================================
+    // REPORTE GENÉRICO: cajas de indicadores + tablas (proveedores, balance,
+    // estado de resultados, flujo de caja)
+    // ==========================================================
+    generarReporteTabular(res, { titulo, subtitulo, archivo, cajas = [], tablas = [], nota = null }) {
+        const doc = new PDFDocument({ margins: { top: 40, bottom: 50, left: 40, right: 40 }, size: "A4", bufferPages: true });
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename=${archivo}.pdf`);
+        doc.pipe(res);
+        this._dibujarEncabezado(doc, titulo, subtitulo);
+        if (cajas.length) this._dibujarCajasResumen(doc, cajas);
+        for (const t of tablas) {
+            this._dibujarTabla(doc, t.titulo, t.columnas, t.filas.map((f) => f.map((v) => String(v ?? ""))), t.vacio ?? "Sin datos en el periodo.");
+        }
+        if (nota) {
+            doc.fillColor("#555555").font("Helvetica-Oblique").fontSize(8.5)
+                .text(nota, doc.page.margins.left, doc.y, { width: doc.page.width - doc.page.margins.left - doc.page.margins.right });
+        }
+        this._dibujarPiePagina(doc);
+        doc.end();
+    }
+
+    // ==========================================================
+    // COMPROBANTE GENÉRICO: ingreso, egreso, devolución, orden de compra
+    // ==========================================================
+    generarComprobante(res, { titulo, numero, archivo, datos = [], columnas = null, filas = [], total = null }) {
+        const doc = new PDFDocument({ margins: { top: 40, bottom: 50, left: 40, right: 40 }, size: "A4", bufferPages: true });
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename=${archivo}.pdf`);
+        doc.pipe(res);
+        this._dibujarEncabezado(doc, titulo, `N° ${numero}`);
+
+        const startX = doc.page.margins.left;
+        const ancho = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        for (const [etiqueta, valor] of datos) {
+            const y = doc.y;
+            doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#333333").text(`${etiqueta}:`, startX, y, { width: 150 });
+            doc.font("Helvetica").fillColor("#000000").text(String(valor ?? "—"), startX + 155, y, { width: ancho - 155 });
+            doc.y = Math.max(doc.y, y + 14) + 3;
+        }
+        doc.y += 10;
+
+        if (columnas) {
+            const w = [0.4, 0.1, 0.17, 0.15, 0.18];
+            this._dibujarTabla(doc, "Detalle", columnas.map((label, i) => ({ label, width: w[i] ?? 0.15, align: i === 0 ? "left" : "right" })),
+                filas.map((f) => f.map((v, i) => (i >= 2 ? this._formatearMoneda(v, false) : String(v)))));
+        }
+        if (total !== null) {
+            doc.font("Helvetica-Bold").fontSize(13).fillColor("#7a1f3d")
+                .text(`TOTAL: ${this._formatearMoneda(total)}`, startX, doc.y + 4, { width: ancho, align: "right" });
+        }
+        doc.y += 50;
+        doc.font("Helvetica").fontSize(9).fillColor("#333333");
+        const yFirma = doc.y;
+        doc.moveTo(startX, yFirma).lineTo(startX + 200, yFirma).stroke("#999999");
+        doc.moveTo(startX + ancho - 200, yFirma).lineTo(startX + ancho, yFirma).stroke("#999999");
+        doc.text("Elaboró", startX, yFirma + 4, { width: 200, align: "center" });
+        doc.text("Recibió / Aprobó", startX + ancho - 200, yFirma + 4, { width: 200, align: "center" });
 
         this._dibujarPiePagina(doc);
         doc.end();

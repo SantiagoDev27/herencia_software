@@ -7,6 +7,7 @@ import ProductoProveedor from "./models/Producto-ProovedorModel.js";
 import { prepararTablaProveedorProducto } from "./configuration/esquemaProveedorProducto.js";
 import { ajustarModelosAlEsquema } from "./configuration/esquemaModelos.js";
 import { prepararEsquemaSeguridad } from "./configuration/esquemaSeguridad.js";
+import { prepararEsquemaNegocio } from "./configuration/esquemaNegocio.js";
 import ProductoRepository from "./repositories/ProductoRepositories.js";
 
 const PORT = process.env.PORT || 3000;
@@ -28,6 +29,13 @@ const startServer = async () => {
             await prepararEsquemaSeguridad(sequelize);
         } catch (error) {
             console.error("⚠️ No se pudo preparar el esquema de seguridad:", error.message);
+        }
+
+        // Tablas y columnas de clientes, devoluciones, compras, contabilidad y permisos (v1.2)
+        try {
+            await prepararEsquemaNegocio(sequelize);
+        } catch (error) {
+            console.error("⚠️ No se pudo preparar el esquema de negocio:", error.message);
         }
 
         // Corrige columnas mal nombradas en los modelos (ej. clientes.dirreccion_clientes)

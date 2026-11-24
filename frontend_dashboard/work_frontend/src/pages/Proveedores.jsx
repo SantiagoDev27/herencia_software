@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import {
-  Truck, Plus, Search, RefreshCw, Trash2, Pencil, Phone, MapPin, Package, Link2, Check, X,
+  Truck, Plus, Search, RefreshCw, Trash2, Pencil, Phone, MapPin, Package, Link2, Check, X, Star,
 } from "lucide-react";
 import proveedorService from "../service/proveedorService";
 import productoService from "../service/productoService";
@@ -9,6 +9,8 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { Modal, ConfirmDialog } from "../components/ui/Modal";
 import { Notice } from "../components/ui/Notice";
 import { fmtCOP, toList } from "../lib/format";
+import { useAuth } from "../context/AuthContext";
+import { EvaluacionProveedorModal, Estrellas } from "../components/EvaluacionProveedorModal";
 
 const FORM_VACIO = { nit: "", razon_social: "", telefono_proveedor: "", direccion: "", ciudad: "Cali" };
 
@@ -102,6 +104,20 @@ export default function Proveedores() {
   const [editandoPrecio, setEditandoPrecio] = useState(null); // { id, valor }
   const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
   const [conteoProductos, setConteoProductos] = useState(new Map()); // id_proveedor -> productos vinculados
+  // HU-PROV-007: calificación promedio de cada proveedor
+  const { puede } = useAuth();
+  const [calificaciones, setCalificaciones] = useState(new Map());
+  const [evaluando, setEvaluando] = useState(null);
+  const cargarCalificaciones = useCallback(async () => {
+    try {
+      setCalificaciones(new Map(toList(await proveedorService.resumenEvaluaciones()).map((r) => [r.id_proveedor, r])));
+    } catch {
+      setCalificaciones(new Map());
+    }
+  }, []);
+  useEffect(() => {
+    cargarCalificaciones();
+  }, [cargarCalificaciones]);
 
   // Cuántos productos surte cada proveedor (para mostrarlo en su tarjeta)
   const cargarConteo = useCallback(async () => {
@@ -351,6 +367,9 @@ export default function Proveedores() {
                     <Truck size={20} />
                   </div>
                   <div className="flex items-center gap-0.5">
+                    <button onClick={() => setEvaluando(p)} className="btn-icon hover:text-primary" title="Desempeño" aria-label={`Desempeño de ${p.razon_social}`}>
+                      <Star size={15} />
+                    </button>
                     <button onClick={() => abrirCatalogo(p)} className="btn-icon hover:text-primary" title="Catálogo de productos" aria-label="Catálogo de productos">
                       <Link2 size={15} />
                     </button>
@@ -365,6 +384,15 @@ export default function Proveedores() {
 
                 <h3 className="text-base font-extrabold leading-snug text-foreground">{p.razon_social}</h3>
                 <p className="mt-0.5 font-mono text-xs text-muted-foreground">NIT: {p.nit}</p>
+                {calificaciones.get(p.id_proveedor) ? (
+                  <button onClick={() => setEvaluando(p)} className="mt-1 flex items-center gap-1.5 text-xs">
+                    <Estrellas valor={calificaciones.get(p.id_proveedor).promedio} />
+                    <b>{calificaciones.get(p.id_proveedor).promedio.toFixed(2)}</b>
+                    <span className="text-muted-foreground">({calificaciones.get(p.id_proveedor).evaluaciones})</span>
+                  </button>
+                ) : (
+                  <p className="mt-1 text-[11px] text-muted-foreground">Sin evaluaciones</p>
+                )}
 
                 <div className="mt-4 space-y-2 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -583,6 +611,12 @@ export default function Proveedores() {
         cargando={eliminando}
         onConfirm={confirmarEliminar}
         onCancel={() => setPorEliminar(null)}
+      />
+      <EvaluacionProveedorModal
+        proveedor={evaluando}
+        puedeEvaluar={puede("evaluarProveedores")}
+        onClose={() => setEvaluando(null)}
+        onCambio={cargarCalificaciones}
       />
     </div>
   );

@@ -4,7 +4,7 @@ import ProductoRepository from "../repositories/ProductoRepositories.js";
 
 class IngresoMercanciaService {
 
-    async registrarEntrada(payload) {
+    async registrarEntrada(payload, transaccionExterna = null) {
 
         const { codigo_entrada, fecha, observacion, detalles } = payload;
 
@@ -43,7 +43,8 @@ class IngresoMercanciaService {
             }
         }
 
-        return await sequelize.transaction(async (transaction) => {
+        // Con una transacción externa (ej. recepción de una orden de compra) todo queda en la misma
+        const ejecutar = async (transaction) => {
 
             const entrada = await IngresoMercanciaRepository.crearEntrada(
                 {
@@ -130,10 +131,15 @@ class IngresoMercanciaService {
                 transaction
             );
 
+            if (transaccionExterna) return entrada;
             return await IngresoMercanciaRepository.obtenerEntradaPorId(
                 entrada.id_entrada
             );
-        });
+        };
+
+        return transaccionExterna
+            ? await ejecutar(transaccionExterna)
+            : await sequelize.transaction(ejecutar);
     }
 
     async obtenerEntrada(id_entrada) {

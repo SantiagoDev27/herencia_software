@@ -1,5 +1,6 @@
 import VentaRepository from "../repositories/VentaRepositories.js";
 import AppError from "../utils/AppError.js";
+import sequelize from "../configuration/database.js";
 
 // Fecha local YYYY-MM-DD (toISOString usa UTC y en Colombia adelanta el día después de las 7 p. m.)
 const fechaLocalISO = (fecha = new Date()) => {
@@ -43,6 +44,9 @@ class ReporteVentasService {
             descuentos: 0,
             totalVentas: 0,
             costoVentas: 0,
+            devoluciones: 0,
+            cantidadDevoluciones: 0,
+            totalNeto: 0,
             utilidadBruta: 0,
             margenBruto: 0,
             ticketPromedio: 0,
@@ -120,12 +124,25 @@ class ReporteVentasService {
                 iva: redondear(v.iva),
                 descuento: redondear(v.descuento),
                 total: redondear(v.total),
+                estado: v.estado_venta,
             };
         });
 
-        resumen.utilidadBruta = resumen.totalVentas - resumen.iva - resumen.costoVentas;
-        resumen.margenBruto = resumen.totalVentas - resumen.iva > 0
-            ? (resumen.utilidadBruta / (resumen.totalVentas - resumen.iva)) * 100
+        // Devoluciones registradas en el periodo (HU-VEN-007): restan de las ventas
+        const [[dev]] = await sequelize.query(
+            "SELECT COALESCE(SUM(dd.total),0) AS total, COALESCE(SUM(dd.iva),0) AS iva, COALESCE(SUM(CASE WHEN d.reintegrado = 1 THEN dd.costo ELSE 0 END),0) AS costo, COUNT(DISTINCT d.id_devoluciones) AS n " +
+            "FROM devoluciones d JOIN det_devolucion dd ON dd.fk_det_devolucion_id_devolucion = d.id_devoluciones WHERE DATE(d.fecha) BETWEEN ? AND ?",
+            { replacements: [inicio, fin] }
+        ).catch(() => [[{ total: 0, iva: 0, costo: 0, n: 0 }]]);
+        resumen.devoluciones = Number(dev.total);
+        resumen.cantidadDevoluciones = Number(dev.n);
+        resumen.totalNeto = resumen.totalVentas - resumen.devoluciones;
+        resumen.iva -= Number(dev.iva);
+        resumen.costoVentas -= Number(dev.costo);
+
+        resumen.utilidadBruta = resumen.totalNeto - resumen.iva - resumen.costoVentas;
+        resumen.margenBruto = resumen.totalNeto - resumen.iva > 0
+            ? (resumen.utilidadBruta / (resumen.totalNeto - resumen.iva)) * 100
             : 0;
         resumen.ticketPromedio = resumen.cantidadVentas ? resumen.totalVentas / resumen.cantidadVentas : 0;
         for (const k of Object.keys(resumen)) resumen[k] = redondear(resumen[k]);

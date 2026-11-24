@@ -69,3 +69,15 @@ export const permitirRoles = (...rolesPermitidos) => {
     next();
   };
 };
+
+// HU-SEG-007: permiso configurable por rol (tabla permiso_rol). El Administrador siempre pasa.
+export const requierePermiso = (clave) => async (req, res, next) => {
+  if (!req.usuario) return next(new AppError('No autenticado.', 401));
+  try {
+    const { default: PermisoService } = await import('../services/PermisoService.js');
+    if (await PermisoService.tienePermiso(req.usuario.fk_usuario_id_rol, clave)) return next();
+    return next(new AppError('No tienes permisos para realizar esta acción.', 403));
+  } catch (error) {
+    return next(error);
+  }
+};

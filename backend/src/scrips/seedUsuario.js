@@ -4,6 +4,7 @@ import Rol from '../models/RolesModels.js';
 import Usuario from '../models/UsuariosModels.js';
 import Categoria from '../models/CategoriesModels.js';
 import { prepararEsquemaSeguridad } from '../configuration/esquemaSeguridad.js';
+import { prepararEsquemaNegocio } from '../configuration/esquemaNegocio.js';
 
 const seed = async () => {
   try {
@@ -12,6 +13,7 @@ const seed = async () => {
 
     // Columnas de seguridad (estado, intentos, bloqueo) y tabla de auditoría, por si el servidor aún no se ha ejecutado
     await prepararEsquemaSeguridad(sequelize);
+    await prepararEsquemaNegocio(sequelize);
 
     // 1. Asegurar los tres roles del sistema (si ya existían con otro nombre, se renombran)
     //    1 Administrador: todo · 2 Vendedor: ventas e inventario · 3 Finanzas: contabilidad

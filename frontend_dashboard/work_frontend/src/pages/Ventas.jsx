@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Search, RefreshCw, Download, Eye, X, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Plus, Search, RefreshCw, Download, Eye, X, ChevronLeft, ChevronRight, Info, Pencil, Ban, Undo2 } from "lucide-react";
+import clienteService from "../service/clienteService";
+import { Badge } from "../components/ui/Badge";
 import ventaService from "../service/ventaService";
 import productoService from "../service/productoService";
 import { useAuth } from "../context/AuthContext";
@@ -11,6 +13,10 @@ import { fmtCOP, fmtFecha, toList, hoyISO, PERIODOS, PERIODO_DEFECTO, rangoDePer
 
 const POR_PAGINA = 10;
 
+// Estado de la venta -> color
+const VARIANTE_ESTADO = { Registrada: "success", "Devolución parcial": "warning", Devuelta: "info", Anulada: "danger" };
+const EstadoVenta = ({ estado }) => <Badge variant={VARIANTE_ESTADO[estado] ?? "neutral"}>{estado ?? "Registrada"}</Badge>;
+
 const nombreDe = (persona, prefijo) =>
   persona ? `${persona[`nombre_${prefijo}`] ?? ""} ${persona[`apellido_${prefijo}`] ?? ""}`.trim() : "";
 
@@ -18,6 +24,9 @@ export default function Ventas() {
   const { usuario, puede } = useAuth();
   // Finanzas consulta ventas y descarga facturas; solo Administrador y Vendedor registran ventas
   const puedeVender = puede("registrarVenta");
+  const puedeEditar = puede("editarVenta");
+  const puedeAnular = puede("anularVenta");
+  const puedeDevolver = puede("devoluciones");
   const [ventas, setVentas] = useState([]);
   const [paginacion, setPaginacion] = useState({ total: 0, paginaActual: 1, totalPaginas: 1 });
   const [pagina, setPagina] = useState(1);
@@ -35,6 +44,17 @@ export default function Ventas() {
   const [descuento, setDescuento] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState("");
+  // Cliente y método de pago (HU-VEN-006) y edición de una venta del día (HU-VEN-002)
+  const [clientes, setClientes] = useState([]);
+  const [metodos, setMetodos] = useState([]);
+  const [clienteSel, setClienteSel] = useState("");
+  const [metodoSel, setMetodoSel] = useState("1");
+  const [editando, setEditando] = useState(null);
+  // Anulación (HU-VEN-003) y devolución (HU-VEN-007)
+  const [anulando, setAnulando] = useState(null);
+  const [motivo, setMotivo] = useState("");
+  const [devolviendo, setDevolviendo] = useState(null); // { venta, lineas:[{ id_producto, nombre, max, cantidad }] }
+  const [reintegrar, setReintegrar] = useState(true);
 
   // Detalle de factura
   const [detalle, setDetalle] = useState(null); // { venta, detalles }
@@ -79,15 +99,48 @@ export default function Ventas() {
   // ---- Nueva venta ---------------------------------------------------------------
   const mapaProductos = useMemo(() => new Map(productos.map((p) => [p.id_producto, p])), [productos]);
 
+  const cargarCatalogos = async () => {
+    const [resC, resM] = await Promise.allSettled([clienteService.listar(), ventaService.metodosPago()]);
+    if (resC.status === "fulfilled") setClientes(toList(resC.value));
+    if (resM.status === "fulfilled") setMetodos(toList(resM.value));
+  };
+
   const abrirNuevaVenta = async () => {
     setErrorModal("");
     setDescuento("");
     setItems([]);
+    setEditando(null);
+    setClienteSel("");
+    setMetodoSel("1");
     setModalVenta(true);
     try {
+      cargarCatalogos();
       const lista = toList(await productoService.obtenerConStock());
       setProductos(lista);
       if (lista.length > 0) setItems([{ id_producto: lista[0].id_producto, cantidad: 1 }]);
+    } catch (err) {
+      setErrorModal(err.mensaje);
+    }
+  };
+
+  // HU-VEN-002: el formulario de venta se reutiliza para modificar una venta del día.
+  // El stock disponible de cada producto suma lo que esta venta ya había tomado.
+  const abrirEdicion = async (d) => {
+    setErrorModal("");
+    setEditando(d.venta);
+    setDetalle(null);
+    setDescuento(Number(d.venta.descuento) ? String(Number(d.venta.descuento)) : "");
+    setClienteSel(d.venta.fk_venta_id_cliente ? String(d.venta.fk_venta_id_cliente) : "");
+    setMetodoSel(String(d.venta.fk_venta_id_metodopago ?? 1));
+    setItems(d.detalles.map((x) => ({ id_producto: x.fk_det_venta_id_producto, cantidad: x.cantidad })));
+    setModalVenta(true);
+    try {
+      cargarCatalogos();
+      const enVenta = new Map(d.detalles.map((x) => [x.fk_det_venta_id_producto, Number(x.cantidad)]));
+      const lista = toList(await productoService.obtenerTodos())
+        .map((p) => ({ ...p, stock: Number(p.stock) + (enVenta.get(p.id_producto) ?? 0) }))
+        .filter((p) => p.stock > 0);
+      setProductos(lista);
     } catch (err) {
       setErrorModal(err.mensaje);
     }
@@ -143,18 +196,27 @@ export default function Ventas() {
 
     setGuardando(true);
     try {
-      const res = await ventaService.crearVenta({
-        fecha: hoyISO(),
-        fk_venta_id_usuario: usuario?.idusuario,
+      const cuerpo = {
+        fk_venta_id_cliente: clienteSel ? Number(clienteSel) : null,
+        fk_venta_id_metodopago: Number(metodoSel) || 1,
         descuento: totales.descuento,
         detalles: items.map((i) => ({
           fk_det_venta_id_producto: Number(i.id_producto),
           cantidad: Number(i.cantidad),
         })),
-      });
+      };
+      const res = editando
+        ? await ventaService.actualizar(editando.id_venta, cuerpo)
+        : await ventaService.crearVenta({ ...cuerpo, fecha: hoyISO(), fk_venta_id_usuario: usuario?.idusuario });
       setModalVenta(false);
-      setDetalle(res?.data ?? null); // se muestra la factura recién creada
-      setAviso({ tipo: "success", texto: `Venta ${res?.data?.venta?.numero_venta ?? ""} registrada. El stock se descontó por lote (FEFO).` });
+      setDetalle(res?.data ?? null); // se muestra la factura recién creada o actualizada
+      setAviso({
+        tipo: "success",
+        texto: editando
+          ? `Venta ${editando.numero_venta} actualizada. El inventario y el ingreso contable se ajustaron.`
+          : `Venta ${res?.data?.venta?.numero_venta ?? ""} registrada. El stock se descontó por lote (FEFO).`,
+      });
+      setEditando(null);
       if (pagina === 1) cargarVentas();
       else setPagina(1);
       avisarCambioDeDatos();
@@ -186,6 +248,62 @@ export default function Ventas() {
       setAviso({ tipo: "error", texto: err.mensaje || "No se pudo generar la factura en PDF." });
     } finally {
       setDescargandoId(null);
+    }
+  };
+
+  const confirmarAnulacion = async (e) => {
+    e.preventDefault();
+    setErrorModal("");
+    setGuardando(true);
+    try {
+      const res = await ventaService.anular(anulando.id_venta, motivo.trim());
+      setAviso({ tipo: "success", texto: `Venta ${anulando.numero_venta} anulada. Se restauró el inventario y se anuló su ingreso.` });
+      setAnulando(null);
+      setDetalle(res?.data ?? null);
+      cargarVentas(true);
+      avisarCambioDeDatos();
+    } catch (err) {
+      setErrorModal(err.mensaje);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const abrirDevolucion = (d) => {
+    setErrorModal("");
+    setMotivo("");
+    setReintegrar(true);
+    setDevolviendo({
+      venta: d.venta,
+      lineas: d.detalles
+        .map((x) => ({ id_producto: x.fk_det_venta_id_producto, nombre: x.producto?.nombre_producto ?? `#${x.fk_det_venta_id_producto}`, max: Number(x.cantidad) - Number(x.cantidad_devuelta || 0), cantidad: 0 }))
+        .filter((x) => x.max > 0),
+    });
+    setDetalle(null);
+  };
+
+  const confirmarDevolucion = async (e) => {
+    e.preventDefault();
+    setErrorModal("");
+    const lineas = devolviendo.lineas.filter((l) => Number(l.cantidad) > 0);
+    if (lineas.length === 0) return setErrorModal("Indica la cantidad de al menos un producto.");
+    setGuardando(true);
+    try {
+      const res = await ventaService.devolver(devolviendo.venta.id_venta, {
+        motivo: motivo.trim(),
+        reintegrar,
+        detalles: lineas.map((l) => ({ fk_producto: l.id_producto, cantidad: Number(l.cantidad) })),
+      });
+      const dev = res?.data;
+      setAviso({ tipo: "success", texto: `Devolución DEV-${dev?.id_devolucion} registrada por ${fmtCOP(dev?.total)}.${reintegrar ? " Los productos volvieron al inventario." : ""}` });
+      if (dev?.id_devolucion) ventaService.descargarComprobanteDevolucion(dev.id_devolucion).catch(() => {});
+      setDevolviendo(null);
+      cargarVentas(true);
+      avisarCambioDeDatos();
+    } catch (err) {
+      setErrorModal(err.mensaje);
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -251,6 +369,7 @@ export default function Ventas() {
                 <th className="px-5 py-3">Fecha</th>
                 <th className="px-5 py-3">Cliente</th>
                 <th className="px-5 py-3">Vendedor</th>
+                <th className="px-5 py-3 text-center">Estado</th>
                 <th className="px-5 py-3 text-right">Subtotal</th>
                 <th className="px-5 py-3 text-right">IVA</th>
                 <th className="px-5 py-3 text-right">Total</th>
@@ -260,11 +379,11 @@ export default function Ventas() {
             <tbody className="divide-y divide-border">
               {cargando ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-xs text-muted-foreground">Cargando ventas...</td>
+                  <td colSpan={9} className="py-10 text-center text-xs text-muted-foreground">Cargando ventas...</td>
                 </tr>
               ) : ventasFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-xs text-muted-foreground">
+                  <td colSpan={9} className="py-10 text-center text-xs text-muted-foreground">
                     {ventas.length === 0
                       ? periodo === "todo"
                         ? 'No hay ventas registradas aún. Haz clic en "Nueva venta" para emitir la primera factura.'
@@ -278,12 +397,14 @@ export default function Ventas() {
                     <td className="px-5 py-3.5 font-mono text-xs font-bold text-primary">{v.numero_venta}</td>
                     <td className="px-5 py-3.5 text-xs text-muted-foreground">{fmtFecha(v.fecha)}</td>
                     <td className="px-5 py-3.5 text-xs text-foreground">
-                      {v.fk_venta_id_cliente ? `Cliente #${v.fk_venta_id_cliente}` : "Sin cliente"}
+                      {nombreDe(v.cliente, "cliente") || "Consumidor final"}
+                      {v.metodo_pago && <span className="block text-[10px] capitalize text-muted-foreground">{v.metodo_pago.metodo_pago}</span>}
                     </td>
                     <td className="px-5 py-3.5 text-xs text-muted-foreground">{nombreDe(v.usuario, "usuario") || "—"}</td>
+                    <td className="px-5 py-3.5 text-center"><EstadoVenta estado={v.estado_venta} /></td>
                     <td className="px-5 py-3.5 text-right text-xs text-muted-foreground">{fmtCOP(v.subtotal)}</td>
                     <td className="px-5 py-3.5 text-right text-xs text-muted-foreground">{fmtCOP(v.iva)}</td>
-                    <td className="px-5 py-3.5 text-right text-xs font-extrabold text-foreground">{fmtCOP(v.total)}</td>
+                    <td className={`px-5 py-3.5 text-right text-xs font-extrabold ${v.estado_venta === "Anulada" ? "text-muted-foreground line-through" : "text-foreground"}`}>{fmtCOP(v.total)}</td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button onClick={() => verDetalle(v)} disabled={cargandoDetalle} className="btn btn-soft btn-sm" aria-label={`Ver ${v.numero_venta}`}>
@@ -337,8 +458,8 @@ export default function Ventas() {
       <Modal
         open={modalVenta}
         onClose={() => setModalVenta(false)}
-        title="Registrar nueva venta"
-        subtitle="Selecciona los productos y cantidades. El precio y el IVA se toman del catálogo."
+        title={editando ? `Modificar venta ${editando.numero_venta}` : "Registrar nueva venta"}
+        subtitle={editando ? "Solo las ventas del día y sin devoluciones se pueden modificar. El inventario se ajusta solo." : "Selecciona los productos y cantidades. El precio y el IVA se toman del catálogo."}
         maxWidth="max-w-2xl"
       >
         <form onSubmit={registrarVenta} className="space-y-4">
@@ -352,6 +473,26 @@ export default function Ventas() {
               </p>
             </div>
           )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="v-cliente">Cliente</label>
+              <select id="v-cliente" className="input" value={clienteSel} onChange={(e) => setClienteSel(e.target.value)}>
+                <option value="">Consumidor final</option>
+                {clientes.map((c) => (
+                  <option key={c.id_cliente} value={c.id_cliente}>{c.nombre_cliente} {c.apellido_cliente ?? ""} · {c.identificacion}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="v-metodo">Método de pago</label>
+              <select id="v-metodo" className="input capitalize" value={metodoSel} onChange={(e) => setMetodoSel(e.target.value)}>
+                {(metodos.length ? metodos : [{ id_metodopago: 1, metodo_pago: "efectivo" }]).map((m) => (
+                  <option key={m.id_metodopago} value={m.id_metodopago}>{m.metodo_pago}</option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           {productos.length === 0 ? (
             <p className="rounded-xl bg-muted px-4 py-6 text-center text-xs text-muted-foreground">
@@ -449,7 +590,7 @@ export default function Ventas() {
               Cancelar
             </button>
             <button type="submit" disabled={guardando || items.length === 0} className="btn btn-primary btn-sm">
-              {guardando ? "Procesando venta..." : "Finalizar y facturar"}
+              {guardando ? "Procesando venta..." : editando ? "Guardar cambios" : "Finalizar y facturar"}
             </button>
           </div>
         </form>
@@ -494,6 +635,11 @@ export default function Ventas() {
                   <div><dt className="inline font-semibold">Factura: </dt><dd className="inline font-mono font-bold text-primary">{detalle.venta.numero_venta}</dd></div>
                   <div><dt className="inline font-semibold">Fecha: </dt><dd className="inline">{fmtFecha(detalle.venta.fecha)}</dd></div>
                   <div><dt className="inline font-semibold">Atendió: </dt><dd className="inline">{nombreDe(detalle.venta.usuario, "usuario") || "—"}</dd></div>
+                  <div><dt className="inline font-semibold">Pago: </dt><dd className="inline capitalize">{detalle.venta.metodo_pago?.metodo_pago ?? "efectivo"}</dd></div>
+                  <div><dt className="inline font-semibold">Estado: </dt><dd className="inline"><EstadoVenta estado={detalle.venta.estado_venta} /></dd></div>
+                  {detalle.venta.motivo_anulacion && (
+                    <div><dt className="inline font-semibold">Motivo de anulación: </dt><dd className="inline">{detalle.venta.motivo_anulacion}</dd></div>
+                  )}
                   <div>
                     <dt className="inline font-semibold">Productos: </dt>
                     <dd className="inline">
@@ -530,7 +676,10 @@ export default function Ventas() {
                             <p className="font-mono text-[10px] text-muted-foreground">{d.producto.codigo_producto}</p>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-center">{d.cantidad}</td>
+                        <td className="px-3 py-2 text-center">
+                          {d.cantidad}
+                          {Number(d.cantidad_devuelta) > 0 && <span className="block text-[10px] text-warning-foreground">{d.cantidad_devuelta} devuelta(s)</span>}
+                        </td>
                         <td className="px-3 py-2 text-right text-muted-foreground">{fmtCOP(d.precio_venta)}</td>
                         <td className="px-3 py-2 text-right text-muted-foreground">{fmtCOP(d.subtotal)}</td>
                         <td className="px-3 py-2 text-right text-muted-foreground">
@@ -556,7 +705,28 @@ export default function Ventas() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-border pt-4">
+            {detalle.devoluciones?.length > 0 && (
+              <div className="rounded-xl border border-warning-border bg-warning-soft/50 p-3 text-xs">
+                <p className="mb-1 font-bold">Devoluciones</p>
+                {detalle.devoluciones.map((dv) => (
+                  <div key={dv.id_devolucion} className="flex items-center justify-between gap-2 py-0.5">
+                    <span>DEV-{dv.id_devolucion} · {fmtFecha(dv.fecha)} · {dv.motivo}{dv.reintegrado ? "" : " (no reintegrada)"}</span>
+                    <button onClick={() => ventaService.descargarComprobanteDevolucion(dv.id_devolucion)} className="font-bold text-primary">{fmtCOP(dv.total)} · PDF</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+              {puedeEditar && detalle.editable && (
+                <button onClick={() => abrirEdicion(detalle)} className="btn btn-soft btn-sm"><Pencil size={13} /> Modificar</button>
+              )}
+              {puedeDevolver && detalle.venta.estado_venta !== "Anulada" && detalle.venta.estado_venta !== "Devuelta" && (
+                <button onClick={() => abrirDevolucion(detalle)} className="btn btn-soft btn-sm"><Undo2 size={13} /> Registrar devolución</button>
+              )}
+              {puedeAnular && detalle.venta.estado_venta === "Registrada" && !(detalle.devoluciones?.length > 0) && (
+                <button onClick={() => { setMotivo(""); setErrorModal(""); setAnulando(detalle.venta); setDetalle(null); }} className="btn btn-danger btn-sm"><Ban size={13} /> Anular</button>
+              )}
               <button onClick={() => setDetalle(null)} className="btn btn-outline btn-sm">Cerrar</button>
               <button
                 onClick={() => descargarPDF(detalle.venta.id_venta, detalle.venta.numero_venta)}
@@ -569,6 +739,49 @@ export default function Ventas() {
             </div>
           </div>
         )}
+      </Modal>
+      {/* Anular venta (HU-VEN-003) */}
+      <Modal open={!!anulando} onClose={() => setAnulando(null)} title={`Anular venta ${anulando?.numero_venta ?? ""}`} subtitle="Las unidades vuelven a sus lotes y el ingreso contable queda anulado. La venta se conserva en el historial." maxWidth="max-w-md">
+        <form onSubmit={confirmarAnulacion} className="space-y-3">
+          <Notice aviso={errorModal ? { tipo: "error", texto: errorModal } : null} />
+          <div>
+            <label className="label" htmlFor="v-motivo">Motivo de la anulación *</label>
+            <textarea id="v-motivo" required minLength={5} maxLength={255} rows={3} className="input" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Error de digitación en la cantidad" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setAnulando(null)} className="btn btn-outline btn-sm">Cancelar</button>
+            <button type="submit" disabled={guardando} className="btn btn-danger btn-sm">{guardando ? "Anulando..." : "Anular venta"}</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Registrar devolución (HU-VEN-007) */}
+      <Modal open={!!devolviendo} onClose={() => setDevolviendo(null)} title={`Devolución de la venta ${devolviendo?.venta?.numero_venta ?? ""}`} subtitle="Indica cuántas unidades devuelve el cliente. Se genera un comprobante y el egreso correspondiente." maxWidth="max-w-lg">
+        <form onSubmit={confirmarDevolucion} className="space-y-3">
+          <Notice aviso={errorModal ? { tipo: "error", texto: errorModal } : null} />
+          {devolviendo?.lineas.map((l, i) => (
+            <div key={l.id_producto} className="flex items-center justify-between gap-3 rounded-xl border border-border p-2.5 text-xs">
+              <span className="font-semibold">{l.nombre}<span className="block text-[10px] font-normal text-muted-foreground">Máximo {l.max}</span></span>
+              <input
+                type="number" min="0" max={l.max} className="input w-20 py-1.5 text-center text-xs" aria-label={`Cantidad a devolver de ${l.nombre}`}
+                value={l.cantidad}
+                onChange={(e) => setDevolviendo({ ...devolviendo, lineas: devolviendo.lineas.map((x, j) => (j === i ? { ...x, cantidad: Math.min(Math.max(0, Number(e.target.value) || 0), x.max) } : x)) })}
+              />
+            </div>
+          ))}
+          <div>
+            <label className="label" htmlFor="d-motivo">Motivo *</label>
+            <input id="d-motivo" required minLength={3} maxLength={150} className="input" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Producto con empaque dañado" />
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={reintegrar} onChange={(e) => setReintegrar(e.target.checked)} />
+            El producto está en buen estado: devolverlo al inventario
+          </label>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDevolviendo(null)} className="btn btn-outline btn-sm">Cancelar</button>
+            <button type="submit" disabled={guardando} className="btn btn-primary btn-sm">{guardando ? "Registrando..." : "Registrar devolución"}</button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

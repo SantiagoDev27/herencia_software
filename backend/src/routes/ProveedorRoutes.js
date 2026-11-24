@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
-import { OPERACION } from '../configuration/roles.js';
+import { verificarToken, requierePermiso } from '../middleware/authMiddleware.js';
+import EvaluacionController from "../controllers/EvaluacionProveedorController.js";
+import { crearEvaluacionValidation } from "../validations/NegocioValidations.js";
 import {
     crearProveedorValidation,
     actualizarProveedorValidation,
@@ -39,7 +40,7 @@ router.post(
     "/proveedores",
     crearProveedorValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     ProveedorController.registrarProveedor
 );
 
@@ -76,7 +77,7 @@ router.patch(
     "/proveedores/:id_proveedor",
     actualizarProveedorValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     ProveedorController.actualizarProveedor
 );
 
@@ -91,7 +92,7 @@ router.delete(
     "/proveedores/:id_proveedor",
     eliminarProveedorValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     ProveedorController.eliminarProveedor
 );
 
@@ -105,7 +106,7 @@ router.patch(
     "/proveedores/:id_proveedor/restaurar",
     obtenerProveedorValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     ProveedorController.restaurarProveedor
 );
 
@@ -128,7 +129,7 @@ router.post(
     "/proveedores/:id_proveedor/productos",
     asociarProductoProveedorValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     ProveedorController.asociarProducto
 );
 
@@ -178,7 +179,7 @@ router.get(
  */
 router.post(
     "/productos/:id_producto/proveedores",
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     asociarProveedorAProductoValidation,
     validarCampos,
     ProveedorController.asociarProveedorAProducto
@@ -195,7 +196,7 @@ router.patch(
     "/proveedor-producto/:id_proveedor_producto",
     actualizarPrecioCompraValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     ProveedorController.actualizarPrecioCompra
 );
 
@@ -210,8 +211,21 @@ router.delete(
     "/proveedor-producto/:id_proveedor_producto",
     eliminarAsociacionValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('gestionarProveedores'),
     ProveedorController.eliminarAsociacion
+);
+
+// ============================================
+// HU-PROV-007: Evaluar proveedores
+// ============================================
+router.get("/evaluaciones/resumen", EvaluacionController.resumen);
+router.get("/proveedores/:id_proveedor/evaluaciones", EvaluacionController.listar);
+router.post(
+    "/proveedores/:id_proveedor/evaluaciones",
+    requierePermiso('evaluarProveedores'),
+    crearEvaluacionValidation,
+    validarCampos,
+    EvaluacionController.crear
 );
 
 export default router;

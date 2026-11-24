@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
-import { OPERACION } from '../configuration/roles.js';
+import { verificarToken, requierePermiso } from '../middleware/authMiddleware.js';
 import { createProductValidation, updateProductValidation, deleteProductValidation, obtenerProductosProximosAVencer } from '../validations/ProductoValidations.js';
 import { validarCampos } from '../middleware/validarCampos.middleware.js';
 import productoController from '../controllers/ProductoController.js';
@@ -43,7 +42,7 @@ router.get(
 // HU-INV-03: Retirar todos los productos agotados (soft delete; conservan su historial)
 router.post(
   '/retirar-agotados',
-  permitirRoles(...OPERACION),
+  requierePermiso('retirarProducto'),
   productoController.retirarAgotados
 );
 
@@ -52,7 +51,7 @@ router.post(
   '/',
   createProductValidation,
   validarCampos,
-  permitirRoles(...OPERACION),
+  requierePermiso('gestionarProductos'),
   productoController.registrarProducto
 );
 
@@ -61,7 +60,7 @@ router.put(
   '/:id',
   updateProductValidation,
   validarCampos,
-  permitirRoles(...OPERACION),
+  requierePermiso('gestionarProductos'),
   productoController.actualizarProducto
 );
 
@@ -70,7 +69,7 @@ router.delete(
   '/:id',
   deleteProductValidation,
   validarCampos,
-  permitirRoles(...OPERACION),
+  requierePermiso('gestionarProductos'),
   productoController.eliminarProducto
 );
 

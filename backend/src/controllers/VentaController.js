@@ -1,140 +1,128 @@
 import VentaService from "../services/VentaService.js";
 import PdfGenerator from "../utils/pdfGenerator.js";
 
+const ok = (res, data, message, status = 200) => res.status(status).json({ success: true, message, data });
+
 class VentaController {
 
-    // POST /ventas - Crear una venta completa (cabecera + detalles + descuento de stock)
-    async crear(req, res) {
+    // POST /ventas — el vendedor es siempre el usuario autenticado
+    async crear(req, res, next) {
         try {
-            const { fecha, fk_venta_id_cliente, fk_venta_id_usuario, descuento, detalles } = req.body;
-
-            const datosVenta = {
-                fecha,
-                fk_venta_id_cliente,
-                // El vendedor es el usuario autenticado (trazabilidad / auditoría)
-                fk_venta_id_usuario: req.usuario?.idusuario ?? fk_venta_id_usuario,
-                descuento
-            };
-
-            const resultado = await VentaService.crearVentaCompleta(datosVenta, detalles);
-
-            return res.status(201).json({
-                success: true,
-                message: "Venta creada exitosamente",
-                data: resultado
-            });
-
+            const { fecha, fk_venta_id_cliente, fk_venta_id_metodopago, descuento, detalles } = req.body;
+            const resultado = await VentaService.crearVentaCompleta(
+                { fecha, fk_venta_id_cliente, fk_venta_id_metodopago, descuento, fk_venta_id_usuario: req.usuario.idusuario },
+                detalles
+            );
+            return ok(res, resultado, "Venta creada exitosamente", 201);
         } catch (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message || "Error al crear la venta"
-            });
+            next(error);
         }
     }
 
-    // GET /ventas/:id_venta - Obtener una venta con sus detalles
     async obtenerPorId(req, res, next) {
         try {
-            const { id_venta } = req.params;
-
-            const resultado = await VentaService.obtenerVentaConDetalles(id_venta);
-
-            return res.status(200).json({
-                success: true,
-                data: resultado
-            });
-
+            return ok(res, await VentaService.obtenerVentaConDetalles(req.params.id_venta));
         } catch (error) {
             next(error);
         }
     }
 
-
-    // GET /ventas/codigo/:numero_venta - Obtener una venta por su código (VEN-001)
     async obtenerPorCodigo(req, res, next) {
         try {
-            const { numero_venta } = req.params;
-
-            const venta = await VentaService.obtenerPorCodigo(numero_venta);
-
-            return res.status(200).json({
-                success: true,
-                data: venta
-            });
-
+            return ok(res, await VentaService.obtenerPorCodigo(req.params.numero_venta));
         } catch (error) {
             next(error);
         }
     }
 
-
-    // GET /ventas - Listar todas las ventas con paginación y filtros opcionales
-    async listar(req, res) {
+    async listar(req, res, next) {
         try {
-            const { pagina, limite, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta } = req.query;
-
-            const resultado = await VentaService.listarVentas({
-                pagina,
-                limite,
-                fechaInicio,
-                fechaFin,
-                fk_venta_id_cliente,
-                numero_venta
-            });
-
-            return res.status(200).json({
-                success: true,
-                data: resultado
-            });
-
+            const { pagina, limite, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta, estado } = req.query;
+            return ok(res, await VentaService.listarVentas({ pagina, limite, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta, estado }));
         } catch (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message || "Error al listar las ventas"
-            });
+            next(error);
         }
     }
 
-
-
-    // PATCH /ventas/:id_venta/recalcular - Recalcular totales de una venta existente
-    async recalcularTotales(req, res) {
+    // PUT /ventas/:id_venta — HU-VEN-002
+    async actualizar(req, res, next) {
         try {
-            const { id_venta } = req.params;
-
-            const resultado = await VentaService.recalcularTotales(id_venta);
-
-            return res.status(200).json({
-                success: true,
-                message: "Totales recalculados exitosamente",
-                data: resultado
-            });
-
+            const resultado = await VentaService.actualizarVenta(req.params.id_venta, req.body, req.usuario);
+            return ok(res, resultado, "Venta actualizada exitosamente");
         } catch (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message || "Error al recalcular los totales"
-            });
+            next(error);
         }
     }
 
+    // PATCH /ventas/:id_venta/anular — HU-VEN-003
+    async anular(req, res, next) {
+        try {
+            const resultado = await VentaService.anularVenta(req.params.id_venta, req.body.motivo, req.usuario);
+            return ok(res, resultado, "Venta anulada. El inventario fue restaurado.");
+        } catch (error) {
+            next(error);
+        }
+    }
 
+    // POST /ventas/:id_venta/devoluciones — HU-VEN-007
+    async registrarDevolucion(req, res, next) {
+        try {
+            const resultado = await VentaService.registrarDevolucion(req.params.id_venta, req.body, req.usuario);
+            return ok(res, resultado, "Devolución registrada", 201);
+        } catch (error) {
+            next(error);
+        }
+    }
 
-    //controlador para crear factura en pdf
+    async listarDevoluciones(req, res, next) {
+        try {
+            const { fechaInicio, fechaFin, id_venta } = req.query;
+            return ok(res, await VentaService.listarDevoluciones({ fechaInicio, fechaFin, id_venta }));
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async comprobanteDevolucionPDF(req, res, next) {
+        try {
+            const dev = (await VentaService.obtenerDevolucion(req.params.id)).toJSON();
+            PdfGenerator.generarComprobante(res, {
+                titulo: "COMPROBANTE DE DEVOLUCIÓN",
+                numero: `DEV-${dev.id_devolucion}`,
+                archivo: `devolucion-DEV-${dev.id_devolucion}`,
+                datos: [
+                    ["Venta", dev.venta?.numero_venta ?? "—"],
+                    ["Fecha", new Date(dev.fecha).toLocaleString("es-CO")],
+                    ["Motivo", dev.motivo],
+                    ["Reintegrado al inventario", dev.reintegrado ? "Sí" : "No"],
+                    ["Registró", `${dev.usuario?.nombre_usuario ?? ""} ${dev.usuario?.apellido_usuario ?? ""}`.trim()],
+                ],
+                columnas: ["Producto", "Cant.", "Subtotal", "IVA", "Total"],
+                filas: dev.detalles.map((d) => [d.producto?.nombre_producto ?? `#${d.fk_det_devolucion_id_producto}`, d.cantidad, d.subtotal, d.iva, d.total]),
+                total: dev.total,
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async recalcularTotales(req, res, next) {
+        try {
+            return ok(res, await VentaService.recalcularTotales(req.params.id_venta), "Totales recalculados exitosamente");
+        } catch (error) {
+            next(error);
+        }
+    }
 
     async generarFacturaPDF(req, res, next) {
         try {
-            const { id_venta } = req.params;
-
-            const { venta, detalles } = await VentaService.obtenerVentaConDetalles(id_venta);
-
+            const { venta, detalles } = await VentaService.obtenerVentaConDetalles(req.params.id_venta);
             venta.cantidad_items = detalles.reduce((acc, d) => acc + Number(d.cantidad || 0), 0);
             PdfGenerator.generarFacturaVenta(res, venta, detalles);
-
-    } catch (error) {
-        next(error);
+        } catch (error) {
+            next(error);
+        }
     }
-}
 }
 
 export default new VentaController();

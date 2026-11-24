@@ -53,6 +53,12 @@ class ProveedorService {
     }
 
     async eliminarProveedor(id_proveedor) {
+        // Requisito 2.2.2.3: no se desactiva un proveedor con órdenes de compra pendientes
+        const { default: OrdenCompraService } = await import("./OrdenCompraService.js");
+        const pendientes = await OrdenCompraService.pendientesDeProveedor(id_proveedor);
+        if (pendientes > 0) {
+            throw new AppError(`El proveedor tiene ${pendientes} orden(es) de compra pendiente(s). Recíbelas o cancélalas antes de desactivarlo.`, 409);
+        }
         const proveedor = await ProveedorRepository.eliminar(id_proveedor);
 
         if (!proveedor) {

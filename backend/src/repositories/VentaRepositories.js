@@ -21,8 +21,10 @@ class VentaRepository {
                 },
                 {
                     model: Usuario,
-                    as: "usuario"
-                }
+                    as: "usuario",
+                    attributes: ["idusuario", "nombre_usuario", "apellido_usuario"]
+                },
+                { association: "metodo_pago" }
             ]
         });
     }
@@ -51,7 +53,7 @@ class VentaRepository {
         );
     }
 
-    async obtenerTodos({ limit, offset, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta }) {
+    async obtenerTodos({ limit, offset, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta, estado }) {
         const where = {};
 
         if (fechaInicio && fechaFin) {
@@ -72,6 +74,10 @@ class VentaRepository {
             where.fk_venta_id_cliente = fk_venta_id_cliente;
         }
 
+        if (estado) {
+            where.estado_venta = estado;
+        }
+
         if (numero_venta) {
             where.numero_venta = { [Op.like]: `%${numero_venta}%` };
         }
@@ -89,7 +95,11 @@ class VentaRepository {
                 model: Usuario,
                 as: "usuario",
                 attributes: ["idusuario", "nombre_usuario", "apellido_usuario"]
-            }],
+            }, {
+                model: Cliente,
+                as: "cliente",
+                attributes: ["id_cliente", "nombre_cliente", "apellido_cliente", "identificacion"]
+            }, { association: "metodo_pago" }],
             distinct: true, // el conteo sigue siendo de ventas, no de filas de detalle
             order: [["fecha", "DESC"], ["id_venta", "DESC"]]
         });
@@ -98,7 +108,7 @@ class VentaRepository {
     // Ventas de un periodo con sus líneas y productos (reporte general de ventas)
     async obtenerParaReporte({ fechaInicio, fechaFin }) {
         return await Venta.findAll({
-            where: { fecha: { [Op.between]: [fechaInicio, fechaFin] } },
+            where: { fecha: { [Op.between]: [fechaInicio, fechaFin] }, estado_venta: { [Op.ne]: "Anulada" } },
             include: [
                 {
                     model: DetVenta,

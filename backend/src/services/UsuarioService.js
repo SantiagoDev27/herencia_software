@@ -5,6 +5,7 @@ import AppError from '../utils/AppError.js';
 import { generarToken } from '../utils/jwt.js';
 import { ROLES_ASIGNABLES } from '../configuration/roles.js';
 import bcrypt from 'bcryptjs';
+import PermisoService from './PermisoService.js';
 
 // HU-SEG-009: después de MAX_INTENTOS fallidos seguidos la cuenta se bloquea MINUTOS_BLOQUEO minutos
 export const MAX_INTENTOS = Number(process.env.MAX_INTENTOS_LOGIN) || 5;
@@ -136,6 +137,7 @@ class UsuarioService {
     const token = generarToken(usuario);
     const usuarioFormateado = sinClave(usuario);
     usuarioFormateado.ultimo_acceso = ahora;
+    usuarioFormateado.permisos = await PermisoService.permisosDeRol(usuario.fk_usuario_id_rol);
 
     return { token, usuario: usuarioFormateado };
   }

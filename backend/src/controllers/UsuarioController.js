@@ -65,7 +65,9 @@ class UsuarioController {
   // GET /api/auth/perfil
   async perfil(req, res, next) {
     try {
-      const usuario = await usuarioService.obtenerUsuario(req.usuario.idusuario);
+      const usuario = (await usuarioService.obtenerUsuario(req.usuario.idusuario)).toJSON();
+      const { default: PermisoService } = await import('../services/PermisoService.js');
+      usuario.permisos = await PermisoService.permisosDeRol(usuario.fk_usuario_id_rol);
       return res.status(200).json({ success: true, data: usuario });
     } catch (error) {
       next(error);

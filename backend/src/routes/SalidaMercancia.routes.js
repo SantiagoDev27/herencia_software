@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
-import { OPERACION } from '../configuration/roles.js';
+import { verificarToken, requierePermiso } from '../middleware/authMiddleware.js';
 import salidaMercanciaController from "../controllers/SalidaMercancia.controller.js";
 import { registrarSalidaValidation } from "../validations/SalidaMercanciaValidations.js";
 import { validarCampos } from "../middleware/validarCampos.middleware.js";
@@ -15,7 +14,7 @@ router.post(
     "/",
     registrarSalidaValidation,
     validarCampos,
-    permitirRoles(...OPERACION),
+    requierePermiso('registrarMovimiento'),
     salidaMercanciaController.crearSalida
 );
 

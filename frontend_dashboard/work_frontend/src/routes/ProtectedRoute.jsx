@@ -7,7 +7,7 @@ export function ProtectedRoute() {
   // Mientras se revisa localStorage al cargar la app, no decidimos nada todavía
   if (cargando) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Cargando...
       </div>
     );

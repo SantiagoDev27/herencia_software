@@ -40,11 +40,14 @@ class ReporteInventarioService {
                 ? new Date(producto.fecha_vencimiento)
                 : null;
 
-            if (
+            // Un producto agotado no tiene fecha de vencimiento (ver ProductModels: afterFind)
+            const proximoAVencer =
+                producto.stock > 0 &&
                 fechaVencimiento &&
                 fechaVencimiento >= fechaActual &&
-                fechaVencimiento <= fechaLimite
-            ) {
+                fechaVencimiento <= fechaLimite;
+
+            if (proximoAVencer) {
                 productosProximosAVencer++;
             }
 
@@ -65,18 +68,12 @@ class ReporteInventarioService {
             // Estado del producto
             let estado = "Disponible";
 
-            if (producto.stock === 0) {
+            if (producto.stock <= 0) {
                 estado = "Agotado";
+            } else if (proximoAVencer) {
+                estado = "Próximo a vencer";
             } else if (producto.stock <= umbral) {
                 estado = "Stock bajo";
-            }
-
-            if (
-                fechaVencimiento &&
-                fechaVencimiento >= fechaActual &&
-                fechaVencimiento <= fechaLimite
-            ) {
-                estado = "Próximo a vencer";
             }
 
             return {

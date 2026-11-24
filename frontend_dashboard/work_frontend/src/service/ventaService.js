@@ -1,31 +1,22 @@
 import axiosClient from "./axiosClient";
-import axios from "axios";
+import { descargarBlob } from "../lib/format";
+
+// Igual que proveedores, el router de ventas se monta en /api/ventas y define "/ventas/...":
+//   /api/ventas/ventas, /api/ventas/ventas/:id_venta, ...
+const BASE = "/ventas/ventas";
 
 const ventaService = {
-  listarVentas: (params = {}) => axiosClient.get("/ventas/ventas", { params }),
-  obtenerPorId: (id) => axiosClient.get(`/ventas/ventas/${id}`),
-  obtenerPorCodigo: (numeroVenta) => axiosClient.get(`/ventas/ventas/codigo/${numeroVenta}`),
-  crearVenta: (datos) => axiosClient.post("/ventas/ventas", datos),
-  recalcular: (id) => axiosClient.patch(`/ventas/ventas/${id}/recalcular`),
+  // params: { pagina, limite }  -> respuesta: data = { ventas, total, paginaActual, totalPaginas }
+  listarVentas: (params = {}) => axiosClient.get(BASE, { params }),
+  // respuesta: data = { venta (con cliente y usuario), detalles (con producto) }
+  obtenerPorId: (id) => axiosClient.get(`${BASE}/${id}`),
+  obtenerPorCodigo: (numeroVenta) => axiosClient.get(`${BASE}/codigo/${encodeURIComponent(numeroVenta)}`),
+  // body: { fecha, fk_venta_id_cliente?, fk_venta_id_usuario?, descuento?, detalles:[{ fk_det_venta_id_producto, cantidad }] }
+  crearVenta: (datos) => axiosClient.post(BASE, datos),
+  recalcular: (id) => axiosClient.patch(`${BASE}/${id}/recalcular`),
   descargarFacturaPDF: async (idVenta, numeroVenta = "factura") => {
-    const token = localStorage.getItem("token");
-    const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-    const response = await axios.get(`${baseURL}/ventas/ventas/${idVenta}/factura-pdf`, {
-      responseType: "blob",
-      headers: {
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-    });
-
-    const blob = new Blob([response.data], { type: "application/pdf" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Factura-${numeroVenta}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    const blob = await axiosClient.get(`${BASE}/${idVenta}/factura-pdf`, { responseType: "blob" });
+    descargarBlob(blob, `Factura-${numeroVenta}.pdf`);
   },
 };
 

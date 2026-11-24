@@ -1,0 +1,46 @@
+@startuml secuencia_reporte_ventas
+!include _estilo.iuml
+title Diagrama de secuencia — Reporte general de ventas para Finanzas (HU-VEN-008 / HU-CON-008)
+autonumber
+actor Finanzas
+participant "ReporteVentas.jsx" as UI
+participant "reporteService" as FS
+participant "authMiddleware" as MW
+participant "ReporteVentasController" as C
+participant "ReporteVentasService" as S
+participant "VentaRepository" as VR
+participant "PdfGenerator" as PDF
+database MySQL
+
+Finanzas -> UI : abre Reportes (por defecto: último mes)
+UI -> FS : obtenerReporteVentas({fechaInicio, fechaFin})
+FS -> MW : GET /api/reportes/ventas
+MW -> MW : permitirRoles(Administrador, Finanzas)
+MW -> C : generarReporteVentas(req)
+C -> S : generarReporteVentas(rango)
+alt fechaInicio > fechaFin
+  S --> C : AppError 400
+else rango válido
+  S -> VR : obtenerParaReporte(rango)
+  VR -> MySQL : SELECT venta + det_venta + producto (incluye retirados)\n+ usuario + cliente
+  MySQL --> VR : ventas
+  S -> S : resumen (total, IVA, costo, utilidad, ticket)\nporDia · porProducto · porVendedor
+  S --> C : reporte
+  C --> UI : 200 JSON
+  UI --> Finanzas : indicadores, gráfico diario, tablas
+end
+loop cada 15 s (useAutoRefresh)
+  UI -> FS : obtenerReporteVentas(rango)
+end
+opt Exportar PDF
+  Finanzas -> UI : "Exportar PDF"
+  UI -> C : GET /api/reportes/ventas/pdf
+  C -> S : generarReporteVentas(rango)
+  C -> PDF : generarReporteVentas(res, reporte)
+  PDF --> UI : application/pdf
+end
+opt Exportar Excel
+  Finanzas -> UI : "Excel"
+  UI -> UI : exportarCSV(reporte)
+end
+@enduml

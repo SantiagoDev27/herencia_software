@@ -1,35 +1,29 @@
 import { Router } from 'express';
-import { registerValidation, loginValidation, updateValidations } from '../validations/UsuarioValidations.js';
+import { loginValidation, cambiarContrasenaValidation } from '../validations/UsuarioValidations.js';
 import { validarCampos } from '../middleware/validarCampos.middleware.js';
-import { esAdmin } from '../middleware/authMiddleware.js';
+import { verificarToken } from '../middleware/authMiddleware.js';
 import usuarioController from '../controllers/UsuarioController.js';
 
 const router = Router();
 
-// Ruta para registrar un nuevo usuario (Crear Usuario)
-router.post(
-  '/register',
-  registerValidation,
-  validarCampos,
-  usuarioController.registrarUsuario
-);
+// El registro público se eliminó: las cuentas las crea el Administrador en /api/usuarios
 
-// Ruta para iniciar sesión (Login)
-router.post(
-  '/login',
-  loginValidation,
-  validarCampos,
-  usuarioController.login
-);
+// HU-SEG-001 / 008 / 009: iniciar sesión
+router.post('/login', loginValidation, validarCampos, usuarioController.login);
 
-// Ruta para actualizar un usuario por su ID (solo administradores)
+// HU-SEG-002: cerrar sesión (registra la auditoría)
+router.post('/logout', verificarToken, usuarioController.logout);
+
+// Datos del usuario autenticado
+router.get('/perfil', verificarToken, usuarioController.perfil);
+
+// HU-SEG-004: cambiar la propia contraseña
 router.patch(
-  '/update/user/:id',
-  esAdmin,
-  updateValidations,
+  '/cambiar-contrasena',
+  verificarToken,
+  cambiarContrasenaValidation,
   validarCampos,
-  usuarioController.updateUsuario
+  usuarioController.cambiarContrasena
 );
 
 export default router;
-

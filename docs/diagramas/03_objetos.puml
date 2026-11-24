@@ -1,0 +1,96 @@
+@startuml objetos
+!include _estilo.iuml
+title Diagrama de objetos — Estado después de la venta VEN-001 (datos de prueba)
+
+object "admin : Usuario" as admin {
+  idusuario = 1
+  correo_usuario = "admin@herenciadepapa.com"
+  estado_usuario = true
+}
+object "rolAdmin : Rol" as rolA {
+  idrol = 1
+  nombre_rol = "Administrador"
+}
+object "laura : Usuario" as laura {
+  idusuario = 4
+  correo_usuario = "laura.ventas@herenciadepapa.com"
+  estado_usuario = true
+  intentos_fallidos = 0
+}
+object "rolVendedor : Rol" as rolV {
+  idrol = 2
+  nombre_rol = "Vendedor"
+}
+object "evento : Auditoria" as aud {
+  accion = "CREAR_USUARIO"
+  detalle = "Creó a laura.ventas@… con rol Vendedor"
+}
+object "ven001 : Venta" as v {
+  numero_venta = "VEN-001"
+  fecha = 2026-11-23
+  subtotal = 134000
+  iva = 0
+  total = 134000
+}
+object "linea1 : DetVenta" as d1 {
+  cantidad = 4
+  precio_venta = 11000
+  total = 44000
+}
+object "linea2 : DetVenta" as d2 {
+  cantidad = 12
+  precio_venta = 7500
+  total = 90000
+}
+object "bocadillo : Producto" as boc {
+  codigo_producto = "BOC-012"
+  stock = 0
+  fecha_vencimiento = null
+}
+object "arequipe : Producto" as are {
+  codigo_producto = "AREQ-250"
+  stock = 18
+  fecha_vencimiento = 2027-01-22
+}
+object "L-BOC-1 : Lote" as lb {
+  cantidad_actual = 0
+  fecha_vencimiento = 2026-12-05
+}
+object "L-AREQ-1 : Lote" as la1 {
+  cantidad_actual = 0
+  fecha_vencimiento = 2026-12-05
+}
+object "L-AREQ-2 : Lote" as la2 {
+  cantidad_actual = 18
+  fecha_vencimiento = 2027-01-22
+}
+object "c1 : DetVentaLote" as c1 {
+  cantidad_tomada = 4
+}
+object "c2 : DetVentaLote" as c2 {
+  cantidad_tomada = 10
+}
+object "c3 : DetVentaLote" as c3 {
+  cantidad_tomada = 2
+}
+
+admin --> rolA
+laura --> rolV
+admin --> aud : registra
+laura --> v : registra
+v *-- d1
+v *-- d2
+d1 --> boc
+d2 --> are
+boc *-- lb
+are *-- la1
+are *-- la2
+d1 *-- c1
+c1 --> lb
+d2 *-- c2
+c2 --> la1
+d2 *-- c3
+c3 --> la2
+note bottom of boc : Agotado: el sistema quitó\nla fecha de vencimiento
+note bottom of are : Toma la fecha del siguiente\nlote con existencias (FEFO)
+@enduml

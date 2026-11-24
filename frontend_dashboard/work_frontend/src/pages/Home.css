@@ -1,292 +1,151 @@
+/* Pantalla de inicio / acceso — usa los tokens de color de index.css */
 .home {
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: #ffffff;
-    font-family: "Inter", sans-serif;
+    display: grid;
+    grid-template-columns: 1fr;
+    background: var(--card);
 }
 
-.home__bar {
-    height: 64px;
-    background: #b9838f;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 0 32px;
+@media (min-width: 1024px) {
+    .home {
+        grid-template-columns: 1.05fr 1fr;
+    }
 }
 
-.home__bar-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.home__login-btn {
-    background: #1a1a1a;
-    color: #ffffff;
-    border: none;
-    border-radius: 999px;
-    padding: 10px 24px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s ease;
-}
-
-.home__login-btn:hover {
-    background: #333333;
-}
-
-.home__register-btn {
-    background: #7a1f3d;
-    color: #ffffff;
-    border: none;
-    border-radius: 999px;
-    padding: 10px 24px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s ease, transform 0.1s ease;
-}
-
-.home__register-btn:hover {
-    background: #611831;
-}
-
-.home__content {
-    flex: 1;
-    display: flex;
+/* Panel de marca (amarillo pastel) */
+.home__brand {
+    display: none;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(150deg, #fff7c7 0%, var(--secondary) 55%, #ffeb94 100%);
+    color: var(--primary-soft-foreground);
     align-items: center;
     justify-content: center;
-    padding: 24px 16px;
+    padding: 48px;
 }
 
-/* --- Marca (pantalla inicial) --- */
-.brand {
-    text-align: center;
+@media (min-width: 1024px) {
+    .home__brand {
+        display: flex;
+    }
 }
 
-.brand__box {
-    border: 1.5px solid #7a1f3d;
-    padding: 20px 48px;
-}
-
-.brand__title {
-    font-family: "Playfair Display", serif;
-    font-weight: 700;
-    font-size: 32px;
-    letter-spacing: 1px;
-    color: #7a1f3d;
-    margin: 0;
-    white-space: nowrap;
-}
-
-.brand__slogan {
-    margin-top: 18px;
-    font-family: "Inter", sans-serif;
-    font-size: 13px;
-    letter-spacing: 6px;
-    color: #999999;
-}
-
-/* --- Panel de login y registro --- */
-.login-panel {
-    width: 320px;
-    background: #b9838f;
-    padding: 32px 28px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
-.login-panel__wordmark {
-    background: #ffffff;
+.home__blob {
+    position: absolute;
     border-radius: 999px;
-    padding: 12px 24px;
-    width: 100%;
-    text-align: center;
+    pointer-events: none;
 }
 
-.login-panel__wordmark span {
-    font-family: "Playfair Display", serif;
-    font-weight: 700;
-    font-size: 18px;
-    color: #7a1f3d;
-    letter-spacing: 0.5px;
-}
-
-.login-panel__header {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.login-panel__title {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 700;
-    color: #ffffff;
-    letter-spacing: -0.2px;
-}
-
-.login-panel__subtitle {
-    margin: 0;
-    font-size: 12px;
-    color: #f7e8eb;
-    line-height: 1.4;
-}
-
-.login-panel__form {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-/* --- Inputs con fuente blanca para alto contraste --- */
-.login-panel__input {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1.5px solid rgba(255, 255, 255, 0.45);
-    border-radius: 999px;
-    padding: 12px 18px;
-    font-family: "Inter", sans-serif;
-    font-size: 14px;
-    color: #ffffff !important;
-    background: rgba(122, 31, 61, 0.45);
-    outline: none;
-    transition: all 0.2s ease;
-}
-
-.login-panel__input:focus {
-    border-color: #ffffff;
-    background: rgba(122, 31, 61, 0.65);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
-}
-
-.login-panel__input::placeholder {
-    color: rgba(255, 255, 255, 0.72);
-}
-
-.login-panel__input:-webkit-autofill,
-.login-panel__input:-webkit-autofill:hover, 
-.login-panel__input:-webkit-autofill:focus {
-    -webkit-text-fill-color: #ffffff !important;
-    -webkit-box-shadow: 0 0 0px 1000px #681832 inset !important;
-    transition: background-color 5000s ease-in-out 0s;
-}
-
-.login-panel__select {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1.5px solid rgba(255, 255, 255, 0.45);
-    border-radius: 999px;
-    padding: 12px 18px;
-    font-family: "Inter", sans-serif;
-    font-size: 14px;
-    color: #ffffff !important;
-    background: rgba(122, 31, 61, 0.45);
-    outline: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.login-panel__select:focus {
-    border-color: #ffffff;
-    background: rgba(122, 31, 61, 0.65);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
-}
-
-.login-panel__select option {
-    background-color: #7a1f3d;
-    color: #ffffff;
-}
-
-.login-panel__submit {
-    background: #7a1f3d;
-    color: #ffffff;
-    border: none;
-    border-radius: 999px;
-    padding: 12px 18px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 44px;
-}
-
-.login-panel__submit:hover:not(:disabled) {
-    background: #611831;
-}
-
-.login-panel__submit:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.login-panel__forgot {
-    background: none;
-    border: none;
-    color: #ffffff;
-    font-size: 13px;
-    text-decoration: underline;
-    cursor: pointer;
-    opacity: 0.9;
-    padding: 2px 0;
-    transition: opacity 0.2s ease;
-}
-
-.login-panel__forgot:hover {
-    opacity: 1;
-}
-
-.login-panel__back {
-    background: none;
-    border: none;
-    color: #ffffff;
-    font-size: 12px;
-    text-decoration: underline;
-    cursor: pointer;
+.home__blob--blue {
+    width: 340px;
+    height: 340px;
+    right: -110px;
+    top: -90px;
+    background: var(--accent);
     opacity: 0.85;
 }
 
-.login-panel__error {
-    background: #ffffff;
-    color: #c0392b;
-    font-size: 12px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    text-align: center;
-    margin: 0;
+.home__blob--green {
+    width: 280px;
+    height: 280px;
+    left: -90px;
+    bottom: -100px;
+    background: var(--primary-soft);
+    opacity: 0.95;
 }
 
-.login-panel__success {
-    background: #ffffff;
-    color: #16a34a;
-    font-size: 12px;
+.home__brand-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 420px;
+    text-align: center;
+}
+
+.home__wordmark {
+    display: inline-block;
+    border: 1.5px solid var(--primary);
+    padding: 18px 40px;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.home__wordmark h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--primary);
+    white-space: nowrap;
+}
+
+.home__wordmark--small {
+    padding: 12px 26px;
+    background: transparent;
+}
+
+.home__wordmark--small h1 {
+    font-size: 22px;
+}
+
+.home__est {
+    margin: 16px 0 0;
+    font-size: 13px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--primary-soft-foreground);
+    opacity: 0.8;
+}
+
+.home__points {
+    list-style: none;
+    margin: 40px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+}
+
+.home__points li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 8px;
-    text-align: center;
-    margin: 0;
 }
 
-.login-panel__spinner {
-    animation: spin 1s linear infinite;
+.home__points li span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--primary);
+    color: var(--primary-foreground);
 }
 
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
+/* Lado del formulario */
+.home__form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 32px 20px;
+    background: var(--background);
+}
+
+.home__form-brand {
+    display: block;
+}
+
+@media (min-width: 1024px) {
+    .home__form-brand {
+        display: none;
     }
 }

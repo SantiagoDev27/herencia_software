@@ -1,78 +1,123 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
-
+/* ==========================================================================
+   Paleta Herencia de Papá
+   amarillo pastel · blanco · verde · azul claro
+   Todo el frontend lee estos tokens: para cambiar un color, se cambia aquí.
+   ========================================================================== */
 :root {
   --font-size: 16px;
-  --background: #F8FAFC;
-  --foreground: #111827;
-  --card: #ffffff;
-  --card-foreground: #111827;
-  --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #2563EB;
-  --primary-foreground: #ffffff;
-  --secondary: #EFF6FF;
-  --secondary-foreground: #1E3A8A;
-  --muted: #F1F5F9;
-  --muted-foreground: #6B7280;
-  --accent: #DBEAFE;
-  --accent-foreground: #1E3A8A;
-  --destructive: #EF4444;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.08);
-  --input: transparent;
-  --input-background: #F1F5F9;
-  --switch-background: #CBD5E1;
-  --ring: #2563EB;
-  --chart-1: #2563EB;
-  --chart-2: #22C55E;
-  --chart-3: #F59E0B;
-  --chart-4: #0EA5E9;
-  --chart-5: #8B5CF6;
-  --radius: 0.75rem;
-  --sidebar: #0F172A;
-  --sidebar-foreground: #CBD5E1;
-  --sidebar-primary: #2563EB;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1E293B;
-  --sidebar-accent-foreground: #F1F5F9;
-  --sidebar-border: rgba(255,255,255,0.06);
-  --sidebar-ring: #2563EB;
+
+  /* Superficies */
+  --background: #FFFCEB;          /* blanco cálido con toque de amarillo pastel */
+  --foreground: #1F3A2D;          /* verde muy oscuro para texto */
+  --card: #FFFFFF;
+  --card-foreground: #1F3A2D;
+  --popover: #FFFFFF;
+  --popover-foreground: #1F3A2D;
+  --muted: #F3F8F3;               /* verde casi blanco */
+  --muted-foreground: #587063;
+  --border: #E1EBE2;
+  --input: #D4E2D6;
+
+  /* Verde: color principal (botones, enlaces, estado activo) */
+  --primary: #25794D;
+  --primary-hover: #1D6340;
+  --primary-foreground: #FFFFFF;
+  --primary-soft: #DDF2E5;
+  --primary-soft-foreground: #1D5A3A;
+
+  /* Amarillo pastel: color secundario (resaltes, avisos suaves) */
+  --secondary: #FFF3B0;
+  --secondary-hover: #FFE98A;
+  --secondary-foreground: #5B4B00;
+  --warning-soft: #FFF8D1;
+  --warning-border: #F2DE84;
+  --warning-foreground: #6B5500;
+
+  /* Azul claro: acento (información, selección, filtros) */
+  --accent: #D5ECFA;
+  --accent-foreground: #1E5B82;
+  --info-border: #B5DDF3;
+
+  /* Error: se mantiene rojo porque comunica peligro */
+  --destructive: #D14343;
+  --destructive-foreground: #FFFFFF;
+  --destructive-soft: #FDECEC;
+  --destructive-border: #F6CACA;
+
+  --ring: #25794D;
+
+  /* Gráficos */
+  --chart-1: #25794D;
+  --chart-2: #7CC4EA;
+  --chart-3: #F2D55C;
+  --chart-4: #8ED3A8;
+  --chart-5: #4A9CC9;
+
+  /* Barra lateral: verde profundo con activo en amarillo pastel */
+  --sidebar: #1D5A3A;
+  --sidebar-foreground: #D6EBDD;
+  --sidebar-primary: #FFF3B0;
+  --sidebar-primary-foreground: #1D5A3A;
+  --sidebar-accent: rgba(255, 255, 255, 0.09);
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #FFF3B0;
+
+  --radius: 0.875rem;
 }
 
 @theme inline {
+  --font-sans: 'Nunito', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
-  --color-input-background: var(--input-background);
-  --color-switch-background: var(--switch-background);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-foreground: var(--primary-soft-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-info-border: var(--info-border);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-border: var(--destructive-border);
+
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 2px);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -87,7 +132,86 @@
   * {
     @apply border-border;
   }
+  html {
+    font-size: var(--font-size);
+  }
   body {
     margin: 0;
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  ::selection {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ==========================================================================
+   Componentes reutilizables (botones, campos, etiquetas, tarjetas)
+   ========================================================================== */
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-card shadow-sm;
+  }
+
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .btn-primary {
+    @apply bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover;
+  }
+  .btn-secondary {
+    @apply border border-warning-border bg-secondary text-secondary-foreground hover:bg-secondary-hover;
+  }
+  .btn-outline {
+    @apply border border-border bg-card text-foreground hover:bg-muted;
+  }
+  .btn-soft {
+    @apply bg-accent text-accent-foreground hover:bg-accent/70;
+  }
+  .btn-danger {
+    @apply bg-destructive text-destructive-foreground hover:opacity-90;
+  }
+  .btn-icon {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-input bg-white px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-muted;
+  }
+  .label {
+    @apply mb-1 block text-xs font-semibold text-foreground;
+  }
+  .hint {
+    @apply mt-1 text-[11px] text-muted-foreground;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold;
+  }
+  .badge-success {
+    @apply border-primary/20 bg-primary-soft text-primary-soft-foreground;
+  }
+  .badge-warning {
+    @apply border-warning-border bg-warning-soft text-warning-foreground;
+  }
+  .badge-danger {
+    @apply border-destructive-border bg-destructive-soft text-destructive;
+  }
+  .badge-info {
+    @apply border-info-border bg-accent text-accent-foreground;
+  }
+  .badge-neutral {
+    @apply border-border bg-muted text-muted-foreground;
+  }
+
+  .table-head {
+    @apply border-b border-border bg-muted/70 text-[11px] font-bold uppercase tracking-wide text-muted-foreground;
   }
 }

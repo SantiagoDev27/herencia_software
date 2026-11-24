@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
+import { OPERACION } from '../configuration/roles.js';
 import {
     crearVentaValidation,
     listarVentasValidation
@@ -8,10 +10,14 @@ import VentaController from "../controllers/VentaController.js";
 
 const router = Router();
 
+// Toda ruta exige sesión iniciada; por defecto la consulta queda abierta a los tres roles
+router.use(verificarToken);
+
 router.post(
     "/ventas",
     crearVentaValidation,
     errorHandler,
+    permitirRoles(...OPERACION),
     VentaController.crear
 );
 
@@ -40,6 +46,7 @@ router.patch(
     "/ventas/:id_venta/recalcular",
     crearVentaValidation,
     errorHandler,
+    permitirRoles(...OPERACION),
     VentaController.recalcularTotales
 );
 

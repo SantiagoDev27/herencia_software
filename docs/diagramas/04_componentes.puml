@@ -1,0 +1,52 @@
+@startuml componentes
+!include _estilo.iuml
+title Diagrama de componentes — ERP Herencia de Papá v1.1
+
+node "Navegador (React 19 + Vite)" {
+  package "Frontend SPA" {
+    [AuthContext\n(sesión, roles,\ncierre por inactividad)] as AC
+    [Páginas\nDashboard · Productos · Movimientos\nVentas · Proveedores · Reportes\nUsuarios · Mi cuenta] as PAG
+    [useAutoRefresh\n(15 s / foco / eventos)] as HR
+    [RoleRoute / ProtectedRoute] as RR
+    [Servicios HTTP\nauthService · usuarioService\nventaService · reporteService\nproductoService · …] as SV
+    [axiosClient\n(JWT + manejo de errores)] as AX
+  }
+}
+
+node "Servidor Node.js (Express 5)" {
+  package "API REST /api" {
+    [Rutas\n/auth · /usuarios · /productos\n/ingreso-mercancia · /salida-mercancia\n/ventas · /reportes · /proveedores] as RT
+    [authMiddleware\nverificarToken · esAdmin · permitirRoles] as MW
+    [express-validator\n+ validarCampos] as VAL
+    [Controladores] as CT
+    [Servicios de negocio\nUsuario · Venta · Producto\nReporteVentas · ReporteInventario\nIngreso · Salida · Notificación] as SR
+    [Repositorios] as RP
+    [Modelos Sequelize] as MD
+    [PdfGenerator (PDFKit)] as PDF
+    [esquemaSeguridad\nesquemaModelos\n(arranque)] as ESQ
+  }
+}
+
+database "MySQL\nherencia_database" as DB {
+  [usuario · rol · auditoria]
+  [producto · lote · categoria]
+  [venta · det_venta · det_venta_lote]
+  [ingreso_mercancia · salida_mercancia\nproveedores · clientes]
+}
+
+PAG --> AC
+PAG --> HR
+PAG --> SV
+RR --> AC
+SV --> AX
+AX --> RT : HTTPS / JSON\nAuthorization: Bearer JWT
+RT --> MW
+RT --> VAL
+RT --> CT
+CT --> SR
+CT --> PDF
+SR --> RP
+RP --> MD
+MD --> DB : mysql2
+ESQ --> DB : crea columnas/tablas\nde seguridad
+@enduml

@@ -130,6 +130,37 @@ class ProveedorController {
         }
     }
 
+    async listarRelaciones(req, res, next) {
+        try {
+            const relaciones = await ProveedorService.listarRelaciones();
+            return res.status(200).json({ success: true, data: relaciones });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // Mismo vínculo, pero iniciado desde el producto (relación bidireccional)
+    async asociarProveedorAProducto(req, res, next) {
+        try {
+            const { id_producto } = req.params;
+            const { fk_producto_proveedor_id_proveedor, precio_compra } = req.body;
+
+            const relacion = await ProveedorService.asociarProductoAProveedor(
+                fk_producto_proveedor_id_proveedor,
+                id_producto,
+                precio_compra
+            );
+
+            return res.status(201).json({
+                success: true,
+                message: "Proveedor vinculado al producto exitosamente.",
+                data: relacion
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async obtenerProveedoresDeProducto(req, res, next) {
         try {
             const { id_producto } = req.params;

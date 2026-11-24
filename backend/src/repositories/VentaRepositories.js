@@ -1,4 +1,7 @@
+import { Op } from "sequelize";
+import sequelize from "../configuration/database.js";
 import Venta from "../models/VentaModel.js";
+import DetVenta from "../models/DetVentaModel.js";
 import Cliente from "../models/clienteModel.js";
 import Usuario from "../models/UsuariosModels.js";
 
@@ -48,7 +51,7 @@ class VentaRepository {
         );
     }
 
-    async obtenerTodos({ limit, offset, fechaInicio, fechaFin, fk_venta_id_cliente }) {
+    async obtenerTodos({ limit, offset, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta }) {
         const where = {};
 
         if (fechaInicio && fechaFin) {
@@ -69,16 +72,56 @@ class VentaRepository {
             where.fk_venta_id_cliente = fk_venta_id_cliente;
         }
 
+        if (numero_venta) {
+            where.numero_venta = { [Op.like]: `%${numero_venta}%` };
+        }
+
         return await Venta.findAndCountAll({
             where,
             limit,
             offset,
-            order: [["id_venta", "DESC"]]
+            // Se incluyen los productos vendidos para mostrar cada venta como salida de inventario
+            include: [{
+                model: DetVenta,
+                as: "detalles_venta",
+                attributes: ["id_detalleventa", "fk_det_venta_id_producto", "cantidad", "precio_venta", "total"]
+            }, {
+                model: Usuario,
+                as: "usuario",
+                attributes: ["idusuario", "nombre_usuario", "apellido_usuario"]
+            }],
+            distinct: true, // el conteo sigue siendo de ventas, no de filas de detalle
+            order: [["fecha", "DESC"], ["id_venta", "DESC"]]
         });
     }
-     async obtenerUltimoNumeroVenta(transaction = null) {
+
+    // Ventas de un periodo con sus líneas y productos (reporte general de ventas)
+    async obtenerParaReporte({ fechaInicio, fechaFin }) {
+        return await Venta.findAll({
+            where: { fecha: { [Op.between]: [fechaInicio, fechaFin] } },
+            include: [
+                {
+                    model: DetVenta,
+                    as: "detalles_venta",
+                    include: [{
+                        association: "producto",
+                        attributes: ["id_producto", "codigo_producto", "nombre_producto", "costo_produccion"],
+                        paranoid: false
+                    }]
+                },
+                { model: Usuario, as: "usuario", attributes: ["idusuario", "nombre_usuario", "apellido_usuario"] },
+                { model: Cliente, as: "cliente" }
+            ],
+            order: [["fecha", "ASC"], ["id_venta", "ASC"]]
+        });
+    }
+
+    // Venta con el consecutivo "VEN-NNN" más alto. Se ordena por el número y no por el id,
+    // para que una venta con otro formato (importada, VEN-H01...) no reinicie el consecutivo.
+    async obtenerUltimoNumeroVenta(transaction = null) {
         return await Venta.findOne({
-            order: [["id_venta", "DESC"]],
+            where: { numero_venta: { [Op.regexp]: "^VEN-[0-9]+$" } },
+            order: [[sequelize.literal("CAST(SUBSTRING(numero_venta, 5) AS UNSIGNED)"), "DESC"]],
             transaction
         });
     }

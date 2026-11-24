@@ -1,5 +1,5 @@
 import VentaService from "../services/VentaService.js";
-import PdfGenerator from "../utils/PdfGenerator.js";
+import PdfGenerator from "../utils/pdfGenerator.js";
 
 class VentaController {
 
@@ -11,7 +11,8 @@ class VentaController {
             const datosVenta = {
                 fecha,
                 fk_venta_id_cliente,
-                fk_venta_id_usuario,
+                // El vendedor es el usuario autenticado (trazabilidad / auditoría)
+                fk_venta_id_usuario: req.usuario?.idusuario ?? fk_venta_id_usuario,
                 descuento
             };
 
@@ -32,7 +33,7 @@ class VentaController {
     }
 
     // GET /ventas/:id_venta - Obtener una venta con sus detalles
-    async obtenerPorId(req, res) {
+    async obtenerPorId(req, res, next) {
         try {
             const { id_venta } = req.params;
 
@@ -44,15 +45,13 @@ class VentaController {
             });
 
         } catch (error) {
-            return res.status(404).json({
-                success: false,
-                message: error.message || "Venta no encontrada"
-            });
+            next(error);
         }
     }
 
+
     // GET /ventas/codigo/:numero_venta - Obtener una venta por su código (VEN-001)
-    async obtenerPorCodigo(req, res) {
+    async obtenerPorCodigo(req, res, next) {
         try {
             const { numero_venta } = req.params;
 
@@ -64,24 +63,23 @@ class VentaController {
             });
 
         } catch (error) {
-            return res.status(404).json({
-                success: false,
-                message: error.message || "Venta no encontrada"
-            });
+            next(error);
         }
     }
+
 
     // GET /ventas - Listar todas las ventas con paginación y filtros opcionales
     async listar(req, res) {
         try {
-            const { pagina, limite, fechaInicio, fechaFin, fk_venta_id_cliente } = req.query;
+            const { pagina, limite, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta } = req.query;
 
             const resultado = await VentaService.listarVentas({
                 pagina,
                 limite,
                 fechaInicio,
                 fechaFin,
-                fk_venta_id_cliente
+                fk_venta_id_cliente,
+                numero_venta
             });
 
             return res.status(200).json({
@@ -130,7 +128,8 @@ class VentaController {
 
             const { venta, detalles } = await VentaService.obtenerVentaConDetalles(id_venta);
 
-        PdfGenerator.generarFacturaVenta(res, venta, detalles);
+            venta.cantidad_items = detalles.reduce((acc, d) => acc + Number(d.cantidad || 0), 0);
+            PdfGenerator.generarFacturaVenta(res, venta, detalles);
 
     } catch (error) {
         next(error);

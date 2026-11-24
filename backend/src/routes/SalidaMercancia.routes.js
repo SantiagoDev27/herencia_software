@@ -1,15 +1,21 @@
 import { Router } from "express";
+import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
+import { OPERACION } from '../configuration/roles.js';
 import salidaMercanciaController from "../controllers/SalidaMercancia.controller.js";
 import { registrarSalidaValidation } from "../validations/SalidaMercanciaValidations.js";
 import { validarCampos } from "../middleware/validarCampos.middleware.js";
 
 const router = Router();
 
+// Toda ruta exige sesión iniciada; por defecto la consulta queda abierta a los tres roles
+router.use(verificarToken);
+
 // POST /api/salidas-mercancia
 router.post(
     "/",
     registrarSalidaValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     salidaMercanciaController.crearSalida
 );
 

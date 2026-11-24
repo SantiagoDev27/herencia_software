@@ -1,5 +1,6 @@
 import sequelize from "../configuration/database.js";
 import IngresoMercanciaRepository from "../repositories/IngresoMercancia.repository.js";
+import ProductoRepository from "../repositories/ProductoRepositories.js";
 
 class IngresoMercanciaService {
 
@@ -112,6 +113,12 @@ class IngresoMercanciaService {
             }
 
             const totalGeneral = subtotalGeneral + ivaGeneral;
+
+            // El producto vuelve a tener existencias: toma la fecha del lote más próximo a vencer
+            await ProductoRepository.sincronizarVencimiento(
+                detalles.map((d) => d.fk_det_entrada_id_producto),
+                transaction
+            );
 
             await IngresoMercanciaRepository.actualizarTotalesEntrada(
                 entrada.id_entrada,

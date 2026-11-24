@@ -1,48 +1,29 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import logo from '../assets/image copy.png';
-import './AuthModal.css';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Notice } from "./ui/Notice";
+import "./AuthModal.css";
 
-export default function AuthModal({ onCerrar }) {
-  const [view, setView] = useState('login'); // 'login' | 'register' | 'recovery'
+// Tarjeta de acceso: solo inicio de sesión contra /api/auth/login.
+// El registro público se eliminó: las cuentas (Vendedor o Finanzas) las crea el Administrador
+// desde el módulo "Usuarios".
+export default function AuthModal() {
   const [cargando, setCargando] = useState(false);
-  const [cargandoRecuperar, setCargandoRecuperar] = useState(false);
-  const [mensajeExitoRecuperar, setMensajeExitoRecuperar] = useState("");
   const [error, setError] = useState(null);
+  const [verClave, setVerClave] = useState(false);
+  const [loginForm, setLoginForm] = useState({ correo: "", contraseña: "" });
 
-  const { login, registrar } = useAuth();
+  const { login, motivoCierre, limpiarMotivoCierre } = useAuth();
   const navigate = useNavigate();
 
-  // Estados de Login
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPass, setLoginPass] = useState("");
-
-  // Estado de Recuperar
-  const [recuperarEmail, setRecuperarEmail] = useState("");
-
-  // Estados de Registro
-  const [nombre, setNombre] = useState("");
-  const [apellido, setApellido] = useState("");
-  const [regEmail, setRegEmail] = useState("");
-  const [regPass, setRegPass] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [rol, setRol] = useState("1");
-
-  const toggleView = () => {
-    setView((prev) => (prev === 'login' ? 'register' : 'login'));
-    setError(null);
-    setMensajeExitoRecuperar("");
-  };
-
-  const handleLoginSubmit = async (e) => {
+  const enviarLogin = async (e) => {
     e.preventDefault();
     setError(null);
+    limpiarMotivoCierre?.();
     setCargando(true);
     try {
-      await login(loginEmail, loginPass);
-      if (onCerrar) onCerrar();
+      await login(loginForm.correo.trim(), loginForm.contraseña);
       navigate("/dashboard");
     } catch (err) {
       setError(err.mensaje || "Credenciales incorrectas.");
@@ -51,269 +32,72 @@ export default function AuthModal({ onCerrar }) {
     }
   };
 
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setCargando(true);
-    try {
-      await registrar({
-        nombre_usuario: nombre,
-        apellido_usuario: apellido,
-        correo_usuario: regEmail,
-        contraseña_usuario: regPass,
-        telefono_usuario: telefono,
-        fk_usuario_id_rol: Number(rol),
-      });
-      if (onCerrar) onCerrar();
-      navigate("/dashboard");
-    } catch (err) {
-      setError(err.mensaje || "Error al registrar la cuenta.");
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  const handleRecuperarSubmit = (e) => {
-    e.preventDefault();
-    if (!recuperarEmail.trim()) return;
-    setError(null);
-    setMensajeExitoRecuperar("");
-    setCargandoRecuperar(true);
-
-    setTimeout(() => {
-      setCargandoRecuperar(false);
-      setMensajeExitoRecuperar("el codigo a sido enviado correctamente");
-    }, 1500);
-  };
-
   return (
-    <div className="auth-page-wrapper">
-      <div className="auth-card">
-        
-        {/* LOGO */}
-        <div className="auth-logo-container">
-          <img src={logo} alt="Herencia de Papá Logo" className="auth-logo" />
-        </div>
-
-        {/* HEADER */}
-        <div className="auth-header">
-          <h2 className="auth-title">
-            {view === 'login'
-              ? 'INICIAR SESIÓN'
-              : view === 'register'
-              ? 'REGISTRARSE'
-              : 'RECUPERAR CONTRASEÑA'}
-          </h2>
-          <p className="auth-description">
-            {view === 'login'
-              ? 'Ingresa tu correo y contraseña para continuar.'
-              : view === 'register'
-              ? 'Completa tus datos para crear una nueva cuenta.'
-              : 'Ingresa tu correo para recibir el código de verificación.'}
-          </p>
-        </div>
-
-        {error && (
-          <div style={{ color: "#ef4444", fontSize: "12px", marginBottom: "12px", textAlign: "center" }}>
-            {error}
-          </div>
-        )}
-
-        {view === 'login' ? (
-          /* FORMULARIO DE INICIO DE SESIÓN */
-          <form className="auth-form" onSubmit={handleLoginSubmit}>
-            <div className="auth-fields-container">
-              <div className="auth-field">
-                <label className="auth-label">Correo electrónico</label>
-                <input
-                  type="email"
-                  placeholder="ejemplo@correo.com"
-                  className="auth-input"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Contraseña</label>
-                <input
-                  type="password"
-                  placeholder="Ingresa tu contraseña"
-                  className="auth-input"
-                  value={loginPass}
-                  onChange={(e) => setLoginPass(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ textAlign: "right", marginTop: "-6px" }}>
-                <button
-                  type="button"
-                  className="auth-link-btn"
-                  onClick={() => {
-                    setView('recovery');
-                    setError(null);
-                    setMensajeExitoRecuperar("");
-                  }}
-                >
-                  recuperar contraseña
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit-btn" disabled={cargando}>
-              {cargando ? "Ingresando..." : "Entrar"}
-            </button>
-
-            <div className="auth-footer">
-              ¿No tienes una cuenta?
-              <button type="button" className="auth-toggle-btn" onClick={toggleView}>
-                Regístrate
-              </button>
-            </div>
-          </form>
-        ) : view === 'recovery' ? (
-          /* FORMULARIO DE RECUPERAR CONTRASEÑA */
-          <form className="auth-form" onSubmit={handleRecuperarSubmit}>
-            <div className="auth-fields-container">
-              <div className="auth-field">
-                <label className="auth-label">Correo electrónico</label>
-                <input
-                  type="email"
-                  placeholder="ejemplo@correo.com"
-                  className="auth-input"
-                  value={recuperarEmail}
-                  onChange={(e) => {
-                    setRecuperarEmail(e.target.value);
-                    if (mensajeExitoRecuperar) setMensajeExitoRecuperar("");
-                  }}
-                  required
-                />
-                {mensajeExitoRecuperar && (
-                  <p className="auth-success-msg">
-                    {mensajeExitoRecuperar}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit-btn" disabled={cargandoRecuperar}>
-              {cargandoRecuperar ? (
-                <Loader2 className="auth-spinner animate-spin" size={18} />
-              ) : (
-                "enviar codigo de verificacion"
-              )}
-            </button>
-
-            <div className="auth-footer">
-              <button
-                type="button"
-                className="auth-toggle-btn"
-                onClick={() => {
-                  setView('login');
-                  setError(null);
-                  setMensajeExitoRecuperar("");
-                  setRecuperarEmail("");
-                }}
-              >
-                Volver al inicio de sesión
-              </button>
-            </div>
-          </form>
-        ) : (
-          /* FORMULARIO DE REGISTRO */
-          <form className="auth-form" onSubmit={handleRegisterSubmit}>
-            <div className="auth-fields-container">
-              <div className="auth-row">
-                <div className="auth-field">
-                  <label className="auth-label">Nombre</label>
-                  <input
-                    type="text"
-                    placeholder="Juan"
-                    className="auth-input"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="auth-field">
-                  <label className="auth-label">Apellido</label>
-                  <input
-                    type="text"
-                    placeholder="Pérez"
-                    className="auth-input"
-                    value={apellido}
-                    onChange={(e) => setApellido(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Correo electrónico</label>
-                <input
-                  type="email"
-                  placeholder="ejemplo@correo.com"
-                  className="auth-input"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Contraseña</label>
-                <input
-                  type="password"
-                  placeholder="Mínimo 6 caracteres"
-                  className="auth-input"
-                  value={regPass}
-                  onChange={(e) => setRegPass(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Teléfono (Opcional)</label>
-                <input
-                  type="tel"
-                  placeholder="3001234567"
-                  className="auth-input"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                />
-              </div>
-
-              <div className="auth-field">
-                <label className="auth-label">Rol de Usuario</label>
-                <select
-                  className="auth-select"
-                  value={rol}
-                  onChange={(e) => setRol(e.target.value)}
-                  required
-                >
-                  <option value="1">Administrador</option>
-                  <option value="2">Vendedor</option>
-                  <option value="3">Cliente</option>
-                </select>
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit-btn" disabled={cargando}>
-              {cargando ? "Creando Cuenta..." : "Crear Cuenta"}
-            </button>
-
-            <div className="auth-footer">
-              ¿Ya tienes una cuenta?
-              <button type="button" className="auth-toggle-btn" onClick={toggleView}>
-                Inicia sesión
-              </button>
-            </div>
-          </form>
-        )}
+    <div className="auth-card card w-full max-w-md p-7 sm:p-8">
+      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+        <ShieldCheck size={22} />
       </div>
+      <h2 className="text-xl font-extrabold text-foreground">Bienvenido de nuevo</h2>
+      <p className="mb-5 mt-1 text-sm text-muted-foreground">Ingresa tu correo y contraseña para continuar.</p>
+
+      {motivoCierre && (
+        <div className="mb-4">
+          <Notice aviso={{ tipo: "warning", texto: motivoCierre }} onClose={limpiarMotivoCierre} />
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4">
+          <Notice aviso={{ tipo: "error", texto: error }} />
+        </div>
+      )}
+
+      <form onSubmit={enviarLogin} className="space-y-4">
+        <div>
+          <label htmlFor="login-correo" className="label">Correo electrónico</label>
+          <input
+            id="login-correo"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="correo@ejemplo.com"
+            className="input"
+            value={loginForm.correo}
+            onChange={(e) => setLoginForm({ ...loginForm, correo: e.target.value })}
+          />
+        </div>
+        <div>
+          <label htmlFor="login-clave" className="label">Contraseña</label>
+          <div className="relative">
+            <input
+              id="login-clave"
+              type={verClave ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              placeholder="Tu contraseña"
+              className="input pr-10"
+              value={loginForm.contraseña}
+              onChange={(e) => setLoginForm({ ...loginForm, contraseña: e.target.value })}
+            />
+            <button
+              type="button"
+              onClick={() => setVerClave((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label={verClave ? "Ocultar contraseña" : "Mostrar contraseña"}
+            >
+              {verClave ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+        <button type="submit" disabled={cargando} className="btn btn-primary w-full py-2.5">
+          {cargando && <Loader2 size={16} className="animate-spin" />}
+          {cargando ? "Ingresando..." : "Entrar"}
+        </button>
+      </form>
+
+      <p className="mt-5 text-center text-xs text-muted-foreground">
+        ¿No tienes cuenta u olvidaste tu contraseña? Solicítala al administrador del sistema.
+      </p>
     </div>
   );
 }
-export { AuthModal };

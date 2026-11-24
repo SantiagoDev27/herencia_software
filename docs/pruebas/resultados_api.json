@@ -1,0 +1,299 @@
+{
+ "fecha": "2026-11-23",
+ "resultados": [
+  {
+   "cp": "001",
+   "esc": "E1",
+   "desc": "Credenciales válidas",
+   "ok": true,
+   "obtenido": "HTTP 200, rol=Administrador"
+  },
+  {
+   "cp": "001",
+   "esc": "E2",
+   "desc": "Contraseña incorrecta",
+   "ok": true,
+   "obtenido": "HTTP 401: Credenciales incorrectas."
+  },
+  {
+   "cp": "001",
+   "esc": "E3",
+   "desc": "Usuario no registrado",
+   "ok": true,
+   "obtenido": "HTTP 401: Credenciales incorrectas."
+  },
+  {
+   "cp": "001",
+   "esc": "E4",
+   "desc": "Campos vacíos",
+   "ok": true,
+   "obtenido": "HTTP 400: El correo electrónico no es válido., La contraseña es obligatoria."
+  },
+  {
+   "cp": "002",
+   "esc": "E1",
+   "desc": "POST /auth/register ya no existe",
+   "ok": true,
+   "obtenido": "HTTP 404: Ruta no encontrada: POST /api/auth/register"
+  },
+  {
+   "cp": "002",
+   "esc": "E2",
+   "desc": "Crear usuario sin sesión",
+   "ok": true,
+   "obtenido": "HTTP 401: Acceso denegado. No se proporcionó un token válido."
+  },
+  {
+   "cp": "003",
+   "esc": "E1",
+   "desc": "Crear usuario Vendedor",
+   "ok": true,
+   "obtenido": "HTTP 201: id=4, rol=Vendedor"
+  },
+  {
+   "cp": "003",
+   "esc": "E2",
+   "desc": "Crear usuario Finanzas",
+   "ok": true,
+   "obtenido": "HTTP 201: id=5, rol=Finanzas"
+  },
+  {
+   "cp": "003",
+   "esc": "E3",
+   "desc": "Correo ya registrado",
+   "ok": true,
+   "obtenido": "HTTP 409: El correo 'laura.ventas@herenciadepapa.com' ya está registrado."
+  },
+  {
+   "cp": "003",
+   "esc": "E4",
+   "desc": "Contraseña débil",
+   "ok": true,
+   "obtenido": "HTTP 400: La contraseña debe contener al menos una letra."
+  },
+  {
+   "cp": "003",
+   "esc": "E5",
+   "desc": "Campos obligatorios incompletos",
+   "ok": true,
+   "obtenido": "HTTP 400: 4 campos con error"
+  },
+  {
+   "cp": "003",
+   "esc": "E6",
+   "desc": "Vendedor intenta crear usuarios",
+   "ok": true,
+   "obtenido": "login HTTP 200; crear HTTP 403: No tienes permisos para realizar esta acción."
+  },
+  {
+   "cp": "004",
+   "esc": "E1",
+   "desc": "Editar datos del usuario",
+   "ok": true,
+   "obtenido": "HTTP 200: teléfono=3201112233"
+  },
+  {
+   "cp": "004",
+   "esc": "E2",
+   "desc": "Desactivar usuario",
+   "ok": true,
+   "obtenido": "desactivar 200; login 403: Tu cuenta está desactivada. Comunícate con el administrador.; token anterior 401"
+  },
+  {
+   "cp": "004",
+   "esc": "E3",
+   "desc": "Reactivar usuario",
+   "ok": true,
+   "obtenido": "activar 200; login 200"
+  },
+  {
+   "cp": "004",
+   "esc": "E4",
+   "desc": "Administrador se desactiva a sí mismo",
+   "ok": true,
+   "obtenido": "HTTP 409: No puedes desactivar tu propia cuenta."
+  },
+  {
+   "cp": "004",
+   "esc": "E5",
+   "desc": "Asignar rol inexistente",
+   "ok": true,
+   "obtenido": "HTTP 400: El rol debe ser Administrador (1), Vendedor (2) o Finanzas (3)."
+  },
+  {
+   "cp": "005",
+   "esc": "E1",
+   "desc": "5 intentos fallidos bloquean la cuenta",
+   "ok": true,
+   "obtenido": "intentos [401, 401, 401, 401, 401]; con clave correcta HTTP 423: Cuenta bloqueada temporalmente por intentos fallidos. Intenta de nuevo en 15 minuto(s)."
+  },
+  {
+   "cp": "005",
+   "esc": "E2",
+   "desc": "Administrador restablece y desbloquea",
+   "ok": true,
+   "obtenido": "restablecer 200; login 200"
+  },
+  {
+   "cp": "006",
+   "esc": "E1",
+   "desc": "Contraseña actual incorrecta",
+   "ok": true,
+   "obtenido": "HTTP 400: La contraseña actual no es correcta."
+  },
+  {
+   "cp": "006",
+   "esc": "E2",
+   "desc": "Nueva contraseña débil",
+   "ok": true,
+   "obtenido": "HTTP 400: La contraseña debe contener al menos un número."
+  },
+  {
+   "cp": "006",
+   "esc": "E3",
+   "desc": "Cambio exitoso",
+   "ok": true,
+   "obtenido": "cambio 200; login con la nueva 200"
+  },
+  {
+   "cp": "007",
+   "esc": "E1",
+   "desc": "Vendedor sin acceso a reportes financieros",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "007",
+   "esc": "E2",
+   "desc": "Finanzas accede a reportes",
+   "ok": true,
+   "obtenido": "HTTP 200"
+  },
+  {
+   "cp": "007",
+   "esc": "E3",
+   "desc": "Finanzas no registra productos ni gestiona usuarios",
+   "ok": true,
+   "obtenido": "productos 403; usuarios 403"
+  },
+  {
+   "cp": "008",
+   "esc": "E1",
+   "desc": "Se registran accesos y acciones",
+   "ok": true,
+   "obtenido": "HTTP 200: 20 eventos; acciones=['ACTIVAR_USUARIO', 'ACTUALIZAR_USUARIO', 'CAMBIAR_CONTRASEÑA', 'CREAR_USUARIO', 'CUENTA_BLOQUEADA', 'DESACTIVAR_USUARIO', 'LOGIN', 'LOGIN_FALLIDO', 'LOGIN_RECHAZADO', 'RESTABLECER_CONTRASEÑA']"
+  },
+  {
+   "cp": "009",
+   "esc": "E1",
+   "desc": "Producto con existencias muestra el vencimiento del lote más próximo",
+   "ok": true,
+   "obtenido": "stock=4, vence=2026-12-05"
+  },
+  {
+   "cp": "009",
+   "esc": "E2",
+   "desc": "Al agotarse por venta se quita la fecha de vencimiento",
+   "ok": true,
+   "obtenido": "venta HTTP 201; stock=0, vence API=None, BD=NULL"
+  },
+  {
+   "cp": "009",
+   "esc": "E3",
+   "desc": "Agotados no aparecen como próximos a vencer",
+   "ok": true,
+   "obtenido": "próximos a vencer: ['MAN-500']"
+  },
+  {
+   "cp": "009",
+   "esc": "E4",
+   "desc": "Venta FEFO: al agotarse el primer lote toma la fecha del siguiente",
+   "ok": true,
+   "obtenido": "stock=18, vence=2027-01-22"
+  },
+  {
+   "cp": "009",
+   "esc": "E5",
+   "desc": "Salida de mercancía agota el producto y sus lotes",
+   "ok": true,
+   "obtenido": "salida HTTP 201; stock=0, vence=None, lote=0"
+  },
+  {
+   "cp": "009",
+   "esc": "E6",
+   "desc": "Nueva entrada devuelve la fecha del nuevo lote",
+   "ok": true,
+   "obtenido": "entrada HTTP 201; stock=8, vence=2027-01-22"
+  },
+  {
+   "cp": "010",
+   "esc": "E1",
+   "desc": "Finanzas no puede retirar productos",
+   "ok": true,
+   "obtenido": "HTTP 403"
+  },
+  {
+   "cp": "010",
+   "esc": "E2",
+   "desc": "Retirar agotados del catálogo",
+   "ok": true,
+   "obtenido": "HTTP 200: retirados=['Bocadillo veleño x12']; catálogo=['AREQ-250', 'COC-006', 'MAN-500', 'PAN-010']"
+  },
+  {
+   "cp": "010",
+   "esc": "E3",
+   "desc": "Sin agotados que retirar",
+   "ok": true,
+   "obtenido": "HTTP 200: No hay productos agotados para retirar."
+  },
+  {
+   "cp": "011",
+   "esc": "E1",
+   "desc": "Reporte por defecto = último mes",
+   "ok": true,
+   "obtenido": "periodo {'fechaInicio': '2026-10-24', 'fechaFin': '2026-11-23'}; ventas=4, total=407550, IVA=8550, utilidad=170800"
+  },
+  {
+   "cp": "011",
+   "esc": "E2",
+   "desc": "Rango personalizado incluye ventas antiguas",
+   "ok": true,
+   "obtenido": "ventas en 150 días = 6"
+  },
+  {
+   "cp": "011",
+   "esc": "E3",
+   "desc": "Rango inválido (inicio > fin)",
+   "ok": true,
+   "obtenido": "HTTP 400: La fecha inicial no puede ser posterior a la fecha final."
+  },
+  {
+   "cp": "011",
+   "esc": "E4",
+   "desc": "Exportar a PDF",
+   "ok": true,
+   "obtenido": "HTTP 200: application/pdf, 156772 bytes"
+  },
+  {
+   "cp": "011",
+   "esc": "E5",
+   "desc": "Producto retirado conserva su historial en el reporte",
+   "ok": true,
+   "obtenido": "productos en reporte: ['Pandebono x10', 'Arequipe 250 g', 'Cocadas de coco x6', 'Bocadillo veleño x12']"
+  },
+  {
+   "cp": "012",
+   "esc": "E1",
+   "desc": "Ventas filtradas al último mes",
+   "ok": true,
+   "obtenido": "ventas=['VEN-001', 'VEN-002', 'VEN-003', 'VEN-004']"
+  },
+  {
+   "cp": "012",
+   "esc": "E2",
+   "desc": "Opción 'Todo' muestra el historial completo",
+   "ok": true,
+   "obtenido": "total ventas=6"
+  }
+ ]
+}

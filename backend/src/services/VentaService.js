@@ -1,4 +1,5 @@
 import sequelize from "../configuration/database.js";
+import AppError from "../utils/AppError.js";
 import VentaRepository from "../repositories/VentaRepositories.js";
 import DetVentaRepository from "../repositories/DetVentaRepository.js";
 import DetVentaLoteRepository from "../repositories/DetVentaLoteRepository.js";
@@ -143,6 +144,12 @@ class VentaService {
                 );
             }
 
+            // Si un producto se agotó, pierde su fecha de vencimiento; si no, toma la del siguiente lote
+            await ProductoRepository.sincronizarVencimiento(
+                detallesCalculados.map((d) => d.fk_det_venta_id_producto),
+                transaction
+            );
+
             await transaction.commit();
 
             return await this.obtenerVentaConDetalles(nuevaVenta.id_venta);
@@ -155,14 +162,14 @@ class VentaService {
 
     async obtenerVentaConDetalles(id_venta) {
         const venta = await VentaRepository.obtenerporid(id_venta);
-        if (!venta) throw new Error("Venta no encontrada");
+        if (!venta) throw new AppError("Venta no encontrada", 404);
         const detalles = await DetVentaRepository.obtenerporventa(id_venta);
         return { venta, detalles };
     }
 
     async obtenerPorCodigo(numero_venta) {
         const venta = await VentaRepository.obtenerporcodigo(numero_venta);
-        if (!venta) throw new Error("Venta no encontrada");
+        if (!venta) throw new AppError("Venta no encontrada", 404);
         return venta;
     }
 
@@ -181,10 +188,10 @@ class VentaService {
     }
 
     async listarVentas(filtros) {
-        const { pagina = 1, limite = 10, fechaInicio, fechaFin, fk_venta_id_cliente } = filtros;
+        const { pagina = 1, limite = 10, fechaInicio, fechaFin, fk_venta_id_cliente, numero_venta } = filtros;
 
         const paginaNum = Math.max(parseInt(pagina, 10) || 1, 1);
-        const limiteNum = Math.max(parseInt(limite, 10) || 10, 1);
+        const limiteNum = Math.min(Math.max(parseInt(limite, 10) || 10, 1), 500);
         const offset = (paginaNum - 1) * limiteNum;
 
         const resultado = await VentaRepository.obtenerTodos({
@@ -192,7 +199,8 @@ class VentaService {
             offset,
             fechaInicio,
             fechaFin,
-            fk_venta_id_cliente
+            fk_venta_id_cliente,
+            numero_venta
         });
 
         return {

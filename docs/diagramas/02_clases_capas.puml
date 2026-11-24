@@ -1,0 +1,127 @@
+@startuml clases_capas
+!include _estilo.iuml
+title Diagrama de clases — Capas del backend (usuarios, ventas y reportes)
+hide empty fields
+
+package "routes / middleware" {
+  class AuthMiddleware <<middleware>> {
+    +verificarToken(req, res, next)
+    +esAdmin(req, res, next)
+    +permitirRoles(...roles)
+  }
+}
+
+package "controllers" {
+  class UsuarioController {
+    +login(req, res, next)
+    +logout(req, res, next)
+    +crearUsuario(req, res, next)
+    +listarUsuarios(req, res, next)
+    +updateUsuario(req, res, next)
+    +cambiarEstado(req, res, next)
+    +restablecerContrasena(req, res, next)
+    +cambiarContrasena(req, res, next)
+    +listarAuditoria(req, res, next)
+  }
+  class VentaController {
+    +crear(req, res)
+    +listar(req, res)
+    +obtenerPorId(req, res, next)
+    +generarFacturaPDF(req, res, next)
+  }
+  class ReporteVentasController {
+    +generarReporteVentas(req, res, next)
+    +generarReporteVentasPDF(req, res, next)
+  }
+  class ProductoController {
+    +registrarProducto(req, res, next)
+    +eliminarProducto(req, res, next)
+    +retirarAgotados(req, res, next)
+  }
+}
+
+package "services" {
+  class UsuarioService {
+    +MAX_INTENTOS : int = 5
+    +MINUTOS_BLOQUEO : int = 15
+    +crearUsuario(datos, admin) : Usuario
+    +loginUsuario(correo, clave, ip) : {token, usuario}
+    +actualizarUsuario(id, datos, admin) : Usuario
+    +cambiarEstado(id, activo, admin) : Usuario
+    +restablecerContrasena(id, nueva, admin)
+    +cambiarContrasena(id, actual, nueva)
+    +listarAuditoria(limite) : Auditoria[]
+  }
+  class VentaService {
+    +crearVentaCompleta(datos, detalles) : Venta
+    +generarNumeroVenta(tx) : String
+    +listarVentas(filtros) : Pagina
+  }
+  class ReporteVentasService {
+    +generarReporteVentas({fechaInicio, fechaFin}) : ReporteVentas
+  }
+  class ProductoService {
+    +registrarProducto(datos) : Producto
+    +eliminarProducto(id) : Producto
+    +retirarAgotados() : Producto[]
+  }
+}
+
+package "repositories" {
+  class UsuarioRepository {
+    +crear(datos)
+    +obtenerPorCorreo(correo)
+    +obtenerPorId(id)
+    +listar(filtros)
+    +actualizar(id, datos)
+    +contarAdministradoresActivos() : int
+  }
+  class AuditoriaRepository {
+    +registrar(evento)
+    +listar(limite)
+  }
+  class VentaRepository {
+    +creardatos(datos, tx)
+    +obtenerTodos(filtros)
+    +obtenerParaReporte(rango)
+    +obtenerUltimoNumeroVenta(tx)
+  }
+  class LoteRepository {
+    +consumirStockFEFO(idProducto, cantidad, tx)
+    +obtenerStockTotalPorProducto(id) : int
+  }
+  class ProductoRepository {
+    +decrementarStock(id, cant, tx)
+    +sincronizarVencimiento(ids, tx)
+    +sincronizarVencimientos() : int
+    +retirarAgotados() : Producto[]
+  }
+}
+
+package "utils" {
+  class PdfGenerator {
+    +generarFacturaVenta(res, venta, detalles)
+    +generarReporteInventario(res, reporte)
+    +generarReporteVentas(res, reporte)
+  }
+  class JWT <<utilidad>> {
+    +generarToken(usuario) : String
+  }
+}
+
+AuthMiddleware ..> UsuarioController : protege
+UsuarioController --> UsuarioService
+VentaController --> VentaService
+ReporteVentasController --> ReporteVentasService
+ReporteVentasController --> PdfGenerator
+VentaController --> PdfGenerator
+ProductoController --> ProductoService
+UsuarioService --> UsuarioRepository
+UsuarioService --> AuditoriaRepository
+UsuarioService ..> JWT
+VentaService --> VentaRepository
+VentaService --> LoteRepository
+VentaService --> ProductoRepository
+ReporteVentasService --> VentaRepository
+ProductoService --> ProductoRepository
+@enduml

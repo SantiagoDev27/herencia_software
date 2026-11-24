@@ -1,27 +1,19 @@
 import axiosClient from "./axiosClient";
-import axios from "axios";
+import { descargarBlob, hoyISO } from "../lib/format";
 
 const reporteService = {
-  obtenerReporteInventario: () => axiosClient.get("/reportes/inventario"),
-  descargarReporteInventarioPDF: async () => {
-    const token = localStorage.getItem("token");
-    const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-    const response = await axios.get(`${baseURL}/reportes/inventario/pdf`, {
-      responseType: "blob",
-      headers: {
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-    });
+  // Inventario. params: { umbral, dias }  (el backend usa 15 y 30 si no se envían)
+  obtenerReporteInventario: (params = {}) => axiosClient.get("/reportes/inventario", { params }),
+  descargarReporteInventarioPDF: async (params = {}) => {
+    const blob = await axiosClient.get("/reportes/inventario/pdf", { params, responseType: "blob" });
+    descargarBlob(blob, `Reporte-Inventario-${hoyISO()}.pdf`);
+  },
 
-    const blob = new Blob([response.data], { type: "application/pdf" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Reporte-Inventario-${new Date().toISOString().slice(0, 10)}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+  // Reporte general de ventas (Finanzas). params: { fechaInicio, fechaFin } (por defecto el último mes)
+  obtenerReporteVentas: (params = {}) => axiosClient.get("/reportes/ventas", { params }),
+  descargarReporteVentasPDF: async (params = {}) => {
+    const blob = await axiosClient.get("/reportes/ventas/pdf", { params, responseType: "blob" });
+    descargarBlob(blob, `Reporte-Ventas-${params.fechaInicio ?? ""}-a-${params.fechaFin ?? hoyISO()}.pdf`);
   },
 };
 

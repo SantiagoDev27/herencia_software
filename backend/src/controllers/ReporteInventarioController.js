@@ -1,5 +1,5 @@
 import ReporteInventarioService from "../services/ReporteInventarioService.js";
-import PdfGenerator from "../utils/PdfGenerator.js";
+import PdfGenerator from "../utils/pdfGenerator.js";
 
 class ReporteInventarioController {
 
@@ -7,8 +7,8 @@ class ReporteInventarioController {
 
         try {
 
-            const umbral = req.query.umbral || 15;
-            const dias = req.query.dias || 30;
+            const umbral = Number(req.query.umbral) || 15;
+            const dias = Number(req.query.dias) || 30;
 
             const reporte = await ReporteInventarioService.generarReporteInventario(
                 umbral,

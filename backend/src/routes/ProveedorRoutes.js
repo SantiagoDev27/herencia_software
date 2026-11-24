@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { verificarToken, permitirRoles } from '../middleware/authMiddleware.js';
+import { OPERACION } from '../configuration/roles.js';
 import {
     crearProveedorValidation,
     actualizarProveedorValidation,
@@ -10,12 +12,16 @@ import {
     actualizarPrecioCompraValidation,
     obtenerProductosDeProveedorValidation,
     obtenerProveedoresDeProductoValidation,
-    eliminarAsociacionValidation
+    eliminarAsociacionValidation,
+    asociarProveedorAProductoValidation
 } from "../validations/ProductoProveedorValidation.js";
 import { validarCampos } from "../middleware/validarCampos.middleware.js";
 import ProveedorController from "../controllers/ProveedorController.js";
 
 const router = Router();
+
+// Toda ruta exige sesión iniciada; por defecto la consulta queda abierta a los tres roles
+router.use(verificarToken);
 
 // ============================================================
 // CRUD DE PROVEEDOR
@@ -33,6 +39,7 @@ router.post(
     "/proveedores",
     crearProveedorValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     ProveedorController.registrarProveedor
 );
 
@@ -69,6 +76,7 @@ router.patch(
     "/proveedores/:id_proveedor",
     actualizarProveedorValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     ProveedorController.actualizarProveedor
 );
 
@@ -83,6 +91,7 @@ router.delete(
     "/proveedores/:id_proveedor",
     eliminarProveedorValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     ProveedorController.eliminarProveedor
 );
 
@@ -96,6 +105,7 @@ router.patch(
     "/proveedores/:id_proveedor/restaurar",
     obtenerProveedorValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     ProveedorController.restaurarProveedor
 );
 
@@ -118,6 +128,7 @@ router.post(
     "/proveedores/:id_proveedor/productos",
     asociarProductoProveedorValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     ProveedorController.asociarProducto
 );
 
@@ -149,6 +160,31 @@ router.get(
 );
 
 /**
+ * GET /api/proveedor-producto
+ * Lista todas las relaciones proveedor-producto con sus nombres,
+ * para mostrar en las tablas de productos y proveedores quién ofrece qué.
+ */
+router.get(
+    "/proveedor-producto",
+    ProveedorController.listarRelaciones
+);
+
+/**
+ * POST /api/productos/:id_producto/proveedores
+ * Vincula un proveedor a un producto desde la ficha del producto
+ * (el mismo registro que crea POST /proveedores/:id_proveedor/productos,
+ * así la relación se administra desde ambos lados).
+ * Body esperado: { fk_producto_proveedor_id_proveedor, precio_compra }
+ */
+router.post(
+    "/productos/:id_producto/proveedores",
+    permitirRoles(...OPERACION),
+    asociarProveedorAProductoValidation,
+    validarCampos,
+    ProveedorController.asociarProveedorAProducto
+);
+
+/**
  * PATCH /api/proveedor-producto/:id_proveedor_producto
  * Actualiza únicamente el precio de compra de una asociación
  * proveedor-producto ya existente (por ejemplo, si el proveedor
@@ -159,6 +195,7 @@ router.patch(
     "/proveedor-producto/:id_proveedor_producto",
     actualizarPrecioCompraValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     ProveedorController.actualizarPrecioCompra
 );
 
@@ -173,6 +210,7 @@ router.delete(
     "/proveedor-producto/:id_proveedor_producto",
     eliminarAsociacionValidation,
     validarCampos,
+    permitirRoles(...OPERACION),
     ProveedorController.eliminarAsociacion
 );
 

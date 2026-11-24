@@ -145,6 +145,11 @@ class ProductoService {
     return await productoRepository.obtenerProductosProximosAVencer(dias);
   }
 
+  // Retirar del catálogo todos los productos agotados (soft delete, se conserva el historial)
+  async retirarAgotados() {
+    return await productoRepository.retirarAgotados();
+  }
+
   //generar reporte de inventario
   async contarProductos() {
     return await productoRepository.contarProductos();
